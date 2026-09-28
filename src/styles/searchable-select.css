@@ -1,0 +1,173 @@
+/* ==========================================================================
+   SEARCHABLE SELECT (combobox with inline filter)
+   Height follows --ss-height so it matches the surrounding form's inputs.
+   ========================================================================== */
+
+.ss {
+  --ss-height: 46px;
+  position: relative;
+  width: 100%;
+  font-family: 'Nunito', sans-serif;
+}
+
+.ss-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  height: var(--ss-height);
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 15px;
+  text-align: left;
+  color: #1e293b;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ss-trigger:hover {
+  border-color: #94a3b8;
+}
+
+.ss-trigger:focus-visible,
+.ss.is-open .ss-trigger {
+  border-color: #1a446c;
+  box-shadow: 0 0 0 3px rgba(26, 68, 108, 0.15);
+}
+
+.ss-trigger.is-placeholder .ss-value {
+  color: #94a3b8;
+}
+
+.ss-value {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ss-chevron {
+  flex-shrink: 0;
+  color: #64748b;
+  transition: transform 0.2s;
+}
+
+.ss.is-open .ss-chevron {
+  transform: rotate(180deg);
+}
+
+.ss-native {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ss-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  box-shadow: 0 16px 32px -8px rgba(15, 43, 70, 0.22);
+  overflow: hidden;
+  animation: ss-in 160ms ease-out;
+}
+
+@keyframes ss-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ss-filter {
+  position: relative;
+  padding: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.ss-filter svg {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  pointer-events: none;
+}
+
+/* Higher specificity than host form rules such as `.form-group input`. */
+.ss .ss-filter input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px 0 36px;
+  font-family: inherit;
+  font-size: 14px;
+  color: #1e293b;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  outline: none;
+  box-shadow: none;
+}
+
+.ss .ss-filter input:focus {
+  border-color: #1a446c;
+  box-shadow: 0 0 0 3px rgba(26, 68, 108, 0.12);
+}
+
+.ss-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  max-height: 232px;
+  overflow-y: auto;
+  outline: none;
+}
+
+.ss-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+}
+
+.ss-option.is-active {
+  background: #eef3f8;
+  color: #0f2b46;
+}
+
+.ss-option.is-selected {
+  color: #1a446c;
+  font-weight: 800;
+}
+
+.ss-option svg {
+  flex-shrink: 0;
+  color: #1a446c;
+}
+
+.ss-empty {
+  padding: 14px 10px;
+  font-size: 14px;
+  color: #64748b;
+  text-align: center;
+}

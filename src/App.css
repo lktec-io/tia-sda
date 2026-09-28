@@ -1,0 +1,33 @@
+/* App Shell Styles */
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  position: relative;
+}
+
+.app-main-content {
+  flex: 1;
+  width: 100%;
+}
+
+.view-transition-wrapper {
+  width: 100%;
+}
+
+.animate-view-in {
+  animation: viewFadeSlide 300ms var(--ease-smooth) forwards;
+}
+
+@keyframes viewFadeSlide {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

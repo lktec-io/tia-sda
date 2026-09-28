@@ -1,0 +1,195 @@
+rules_version = '2';
+
+// ===========================================================================
+// TUCASA TIA Mbeya — Firestore security rules
+//
+// Test:    npm run test:rules          (Firestore emulator, needs Java 21+)
+// Deploy:  npm run deploy:rules
+//
+// Access model — every account (member, associate, reader, leader) is active
+// immediately after registration; there is no approval step.
+//   • Public  → announcements tagged 'reader'
+//   • Member  → any signed-in user with a profile reads posts tagged with their role
+//   • Self    → read own profile; register once; edit only phone + location
+//   • Leader  → (role 'leader') read everything; manage OTHER users (role, fee);
+//               delete non-leaders; publish posts
+//   • Nobody  → sets their own fee as paid or edits their own role after registering
+//
+// NOTE: anyone may self-register with role 'leader' (a deliberate product decision),
+// which grants leader access to the full registry on sign-up.
+// ===========================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------ helpers
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function profilePath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function hasProfile() {
+      return signedIn() && exists(profilePath(request.auth.uid));
+    }
+
+    function myProfile() {
+      return get(profilePath(request.auth.uid)).data;
+    }
+
+    function isLeader() {
+      return hasProfile() && myProfile().role == 'leader';
+    }
+
+    // Official TIA Mbeya course codes per qualification level (mirror of src/data/constants.js).
+    function coursesFor(level) {
+      return level == 'certificate'
+        ? ['BTCAC', 'BTCPLM', 'BTCBA', 'BTCHRM', 'BTCMK', 'BTCPSAF']
+        : level == 'diploma'
+          ? ['DAC', 'DPLM', 'DBA', 'DHRM', 'DMK', 'DPSAF']
+          : ['BAC', 'BPLM', 'BBA', 'BHRM', 'BMPR', 'BPSAF'];
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function isShortString(value, maxLength) {
+      return value is string && value.size() <= maxLength;
+    }
+
+    // Empty, or an HTTPS image hosted on Cloudinary.
+    function isValidPhotoUrl(value) {
+      return value is string
+        && value.size() <= 500
+        && (value == '' || value.matches('^https://res[.]cloudinary[.]com/.+'));
+    }
+
+    // ------------------------------------------------- users: validation
+    // location: { residentialArea, houseNumber } — the single-field housing schema.
+    // (The retired roomNumber key is removed by My Profile on save.)
+    function isValidLocation(loc) {
+      return loc is map
+        && loc.keys().hasOnly(['residentialArea', 'houseNumber'])
+        && isShortString(loc.get('residentialArea', ''), 100)
+        && isShortString(loc.get('houseNumber', ''), 100);
+    }
+
+    // academicDetails: { level, courseCode, course, yearOfStudy }; the code must belong to the level.
+    function isValidAcademic(a) {
+      let level = a.get('level', 'degree');
+      return a is map
+        && a.keys().hasOnly(['level', 'courseCode', 'course', 'yearOfStudy'])
+        && level in ['certificate', 'diploma', 'degree']
+        && (!('courseCode' in a) || a.courseCode in coursesFor(level))
+        && isShortString(a.get('course', ''), 120)
+        && isShortString(a.get('yearOfStudy', ''), 10);
+    }
+
+    // Exact shape written by Registration.jsx.
+    function isValidRegistration(uid) {
+      let d = request.resource.data;
+      return d.keys().hasOnly([
+          'uid', 'fullName', 'email', 'phone', 'role', 'status', 'membershipFeePaid',
+          'profilePictureUrl', 'academicDetails', 'location', 'ministryWing', 'createdAt'
+        ])
+        && d.keys().hasAll(['uid', 'fullName', 'email', 'role', 'membershipFeePaid', 'createdAt'])
+        && d.uid == uid
+        && isShortString(d.fullName, 120) && d.fullName.size() > 0
+        && isShortString(d.email, 254)
+        && d.role in ['reader', 'member', 'associate', 'leader']
+        // Leaders are stored as approved; nobody else carries a status.
+        && (d.role == 'leader'
+              ? d.get('status', '') == 'approved'
+              : !('status' in d))
+        // Nobody can register themselves as paid.
+        && d.membershipFeePaid == false
+        && (!('profilePictureUrl' in d) || isValidPhotoUrl(d.profilePictureUrl))
+        && (!('academicDetails' in d) || isValidAcademic(d.academicDetails))
+        && (!('location' in d) || isValidLocation(d.location))
+        && d.createdAt == request.time;
+    }
+
+    // My Profile page: phone + housing (area, house number) only.
+    // role, status, fee, photo, academics, uid, etc. are untouchable.
+    function isValidSelfUpdate() {
+      let d = request.resource.data;
+      return changedKeys().hasOnly(['phone', 'location', 'updatedAt'])
+        && isShortString(d.phone, 20)
+        && (!('location' in changedKeys()) || isValidLocation(d.location))
+        && (!('updatedAt' in changedKeys()) || d.updatedAt == request.time);
+    }
+
+    // Leaders manage OTHER users. Fee changes must carry an audit trail.
+    function isValidLeaderUpdate(uid) {
+      let d = request.resource.data;
+      return !isSelf(uid)
+        && !changedKeys().hasAny(['uid', 'email', 'createdAt'])
+        && d.role in ['reader', 'member', 'associate', 'leader']
+        && d.membershipFeePaid is bool
+        && (!('profilePictureUrl' in d) || isValidPhotoUrl(d.profilePictureUrl))
+        && (
+          !('membershipFeePaid' in changedKeys())
+          || (d.feeUpdatedBy == request.auth.uid && d.feeUpdatedAt == request.time)
+        );
+    }
+
+    // ------------------------------------------ announcements: validation
+    function isValidAnnouncement() {
+      let d = request.resource.data;
+      return d.keys().hasOnly([
+          'title', 'category', 'content', 'visibleTo',
+          'authorId', 'authorName', 'publishedAt', 'updatedAt'
+        ])
+        && d.keys().hasAll(['title', 'category', 'content', 'visibleTo', 'authorId', 'publishedAt'])
+        && isShortString(d.title, 120) && d.title.size() > 0
+        && isShortString(d.content, 3000) && d.content.size() > 0
+        && d.category in ['Sabbath Service', 'Choir', 'Welfare', 'Evangelism', 'Fellowship', 'General']
+        && d.visibleTo is list
+        && d.visibleTo.size() > 0
+        && d.visibleTo.hasOnly(['reader', 'member', 'associate']);
+    }
+
+    // ================================================================ users
+    match /users/{uid} {
+      allow get: if isSelf(uid) || isLeader();
+      allow list: if isLeader();
+
+      allow create: if isSelf(uid) && isValidRegistration(uid);
+
+      allow update: if (isSelf(uid) && isValidSelfUpdate())
+                    || (isLeader() && isValidLeaderUpdate(uid));
+
+      // Leaders may remove members from the registry — never themselves or another leader.
+      allow delete: if isLeader()
+                    && !isSelf(uid)
+                    && resource.data.role != 'leader';
+    }
+
+    // ======================================================== announcements
+    match /announcements/{announcementId} {
+      allow read: if 'reader' in resource.data.visibleTo
+                  || isLeader()
+                  || (hasProfile() && myProfile().role in resource.data.visibleTo);
+
+      allow create: if isLeader()
+                    && isValidAnnouncement()
+                    && request.resource.data.authorId == request.auth.uid
+                    && request.resource.data.publishedAt == request.time;
+
+      allow update: if isLeader()
+                    && isValidAnnouncement()
+                    && !changedKeys().hasAny(['authorId', 'publishedAt']);
+
+      allow delete: if isLeader();
+    }
+
+    // Everything else is closed by default.
+  }
+}
