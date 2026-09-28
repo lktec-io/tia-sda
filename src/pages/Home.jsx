@@ -276,7 +276,6 @@ export default function Home() {
               ) : (
                 <video
                   src={album.videoSrc}
-                  controls
                   loop
                   muted
                   playsInline
