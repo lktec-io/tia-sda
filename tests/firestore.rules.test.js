@@ -21,10 +21,23 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
-  where
+  where,
+  writeBatch
 } from 'firebase/firestore';
 
 const PROJECT_ID = 'demo-tucasa-rules';
+const LEADER_PASSCODE = 'Correct-Horse-Battery-2026';
+
+// Mirrors Registration.jsx: profile + passcode claim committed in one batch.
+const registerLeader = (uid, passcode, { includeClaim = true, extra = {} } = {}) => {
+  const db = as(uid);
+  const batch = writeBatch(db);
+  batch.set(doc(db, `users/${uid}`), registration(uid, { role: 'leader', status: 'approved', ...extra }));
+  if (includeClaim) {
+    batch.set(doc(db, `leaderClaims/${uid}`), { passcode, createdAt: serverTimestamp() });
+  }
+  return batch.commit();
+};
 const PHOTO = 'https://res.cloudinary.com/demo/image/upload/v1/tucasa/profile.jpg';
 
 let env;
@@ -92,6 +105,7 @@ beforeEach(async () => {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
+    await setDoc(doc(db, 'config/leaderRegistration'), { passcode: LEADER_PASSCODE });
     // leader1: older leader profile without a status; leader2: current shape (status 'approved').
     await setDoc(doc(db, 'users/leader1'), legacyProfile('leader1', 'leader', { membershipFeePaid: true }));
     await setDoc(doc(db, 'users/leader2'), legacyProfile('leader2', 'leader', { status: 'approved' }));
@@ -156,14 +170,52 @@ describe('Registration', () => {
     await assertSucceeds(setDoc(doc(as('newbie'), 'users/newbie'), registration('newbie')));
   });
 
-  test('leader registration (status approved) succeeds and grants leader access immediately', async () => {
-    await assertSucceeds(setDoc(doc(as('newLeader'), 'users/newLeader'), registration('newLeader', { role: 'leader', status: 'approved' })));
+  test('leader registration with the correct passcode succeeds and grants access immediately', async () => {
+    await assertSucceeds(registerLeader('newLeader', LEADER_PASSCODE));
     await assertSucceeds(getDocs(collection(as('newLeader'), 'users')));
   });
 
-  test('leader registration without status approved is rejected', async () => {
-    await assertFails(setDoc(doc(as('a'), 'users/a'), registration('a', { role: 'leader' })));
-    await assertFails(setDoc(doc(as('b'), 'users/b'), registration('b', { role: 'leader', status: 'pending' })));
+  test('leader registration with a wrong passcode is rejected', async () => {
+    await assertFails(registerLeader('intruder', 'guess123'));
+    await assertFails(registerLeader('intruder2', ''));
+  });
+
+  test('leader profile written without a passcode claim is rejected', async () => {
+    await assertFails(registerLeader('sneaky', LEADER_PASSCODE, { includeClaim: false }));
+    await assertFails(setDoc(doc(as('sneaky2'), 'users/sneaky2'), registration('sneaky2', { role: 'leader', status: 'approved' })));
+  });
+
+  test('leader registration is closed when no passcode is configured', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await deleteDoc(doc(ctx.firestore(), 'config/leaderRegistration'));
+    });
+    await assertFails(registerLeader('newLeader', LEADER_PASSCODE));
+  });
+
+  test('leader registration without status approved is rejected even with the passcode', async () => {
+    await assertFails(registerLeader('a', LEADER_PASSCODE, { extra: { status: 'pending' } }));
+  });
+
+  test('a passcode claim cannot be attached to a non-leader profile', async () => {
+    const db = as('member9');
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'users/member9'), registration('member9'));
+    batch.set(doc(db, 'leaderClaims/member9'), { passcode: LEADER_PASSCODE, createdAt: serverTimestamp() });
+    await assertFails(batch.commit());
+  });
+
+  test('passcode config and claims can never be read by any client', async () => {
+    await registerLeader('newLeader', LEADER_PASSCODE);
+    await assertFails(getDoc(doc(asGuest(), 'config/leaderRegistration')));
+    await assertFails(getDoc(doc(as('leader1'), 'config/leaderRegistration')));
+    await assertFails(getDoc(doc(as('newLeader'), 'leaderClaims/newLeader')));
+    await assertFails(getDoc(doc(as('leader1'), 'leaderClaims/newLeader')));
+  });
+
+  test('an existing member cannot use a claim to upgrade to leader', async () => {
+    await assertFails(
+      setDoc(doc(as('member1'), 'leaderClaims/member1'), { passcode: LEADER_PASSCODE, createdAt: serverTimestamp() })
+    );
   });
 
   test('non-leaders cannot carry a status', async () => {

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createUserWithEmailAndPassword, deleteUser } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import SearchableSelect from '../components/SearchableSelect';
-import { CameraIcon, CheckIcon, CloseIcon } from '../components/Icons';
+import { CameraIcon, CheckIcon, CloseIcon, LockIcon } from '../components/Icons';
 import {
   ACADEMIC_LEVELS,
   HOUSE_NUMBER_MAX,
@@ -33,6 +33,9 @@ const INITIAL_FORM = {
   houseNumber: '',
   ministryWing: 'None'
 };
+
+const LEADER_AUTH_ERROR =
+  'Authorization Failed: Invalid Leader Passcode. Please verify with the Church Secretariat.';
 
 const getFriendlyError = (error) => {
   switch (error?.code) {
@@ -63,6 +66,10 @@ export default function Registration() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
+  // Leader Verification Passcode — kept out of formData and never written to the profile.
+  // It is checked server-side by firestore.rules against config/leaderRegistration.
+  const [leaderPasscode, setLeaderPasscode] = useState('');
+
   // Profile picture (uploaded to Cloudinary the moment it is selected)
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
   const [previewUrl, setPreviewUrl] = useState('');
@@ -83,6 +90,8 @@ export default function Registration() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    // Switching away from "Leader" discards any typed passcode.
+    if (name === 'accessLevel' && value !== 'leader') setLeaderPasscode('');
     setFormData(prev => ({
       ...prev,
       [name]: value,
@@ -182,8 +191,15 @@ export default function Registration() {
       return;
     }
 
+    // Leader signups must present the verification passcode (checked server-side on save).
+    const passcode = leaderPasscode.trim();
+    if (isLeaderSignup && !passcode) {
+      setMessage({ type: 'error', text: LEADER_AUTH_ERROR });
+      return;
+    }
+
     setLoading(true);
-    setMessage({ type: 'info', text: 'Creating your account...' });
+    setMessage({ type: 'info', text: isLeaderSignup ? 'Verifying leader authorization...' : 'Creating your account...' });
 
     let createdUser = null;
 
@@ -192,7 +208,12 @@ export default function Registration() {
       const { user } = await createUserWithEmailAndPassword(auth, email, formData.password);
       createdUser = user;
 
-      await setDoc(doc(db, 'users', user.uid), {
+      // Profile + (for leaders) the passcode claim are committed atomically. The rules
+      // accept a leader profile ONLY if the claim matches config/leaderRegistration;
+      // otherwise the whole batch is rejected and the new auth account is rolled back.
+      const batch = writeBatch(db);
+
+      batch.set(doc(db, 'users', user.uid), {
         uid: user.uid,
         fullName: formData.fullName.trim(),
         email,
@@ -216,8 +237,20 @@ export default function Registration() {
         createdAt: serverTimestamp()
       });
 
-      // Accounts are active immediately — go straight to the personal workspace.
-      navigate('/dashboard', { replace: true });
+      if (isLeaderSignup) {
+        // Write-only document: no client can ever read leaderClaims back.
+        batch.set(doc(db, 'leaderClaims', user.uid), {
+          passcode,
+          createdAt: serverTimestamp()
+        });
+      }
+
+      await batch.commit();
+      setLeaderPasscode('');
+
+      // Accounts are active immediately — leaders land in the Command Center, everyone
+      // else in their personal workspace.
+      navigate(isLeaderSignup ? '/leader' : '/dashboard', { replace: true });
     } catch (error) {
       console.error('Registration error:', error);
 
@@ -231,7 +264,9 @@ export default function Registration() {
         }
       }
 
-      setMessage({ type: 'error', text: getFriendlyError(error) });
+      // A rejected leader profile means the passcode did not match.
+      const leaderRejected = isLeaderSignup && createdUser && error?.code === 'permission-denied';
+      setMessage({ type: 'error', text: leaderRejected ? LEADER_AUTH_ERROR : getFriendlyError(error) });
     } finally {
       setLoading(false);
     }
@@ -573,6 +608,72 @@ export default function Registration() {
           pointer-events: none;
         }
 
+        /* ---------- Leader verification (slides open) ---------- */
+        .leader-key {
+          display: grid;
+          grid-template-rows: 0fr;
+          opacity: 0;
+          transition: grid-template-rows 0.35s ease, opacity 0.25s ease, margin 0.35s ease;
+        }
+
+        .leader-key.is-open {
+          grid-template-rows: 1fr;
+          opacity: 1;
+          margin-bottom: 20px;
+        }
+
+        .leader-key-inner {
+          overflow: hidden;
+          min-height: 0;
+        }
+
+        .leader-key-panel {
+          padding: 16px 16px 0;
+          border: 1px solid #1a446c;
+          border-left: 4px solid #d4af37;
+          border-radius: 4px;
+          background: linear-gradient(135deg, #f8fafc 0%, #eef3f8 100%);
+        }
+
+        .leader-key-head {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          margin-bottom: 14px;
+        }
+
+        .leader-key-head strong {
+          display: block;
+          font-size: 14px;
+          color: #0f2b46;
+        }
+
+        .leader-key-head span {
+          font-size: 13px;
+          color: #64748b;
+        }
+
+        .leader-key-icon {
+          display: grid;
+          place-items: center;
+          flex-shrink: 0;
+          width: 32px;
+          height: 32px;
+          border-radius: 4px;
+          background: linear-gradient(135deg, #0f2b46 0%, #1a446c 100%);
+          color: #d4af37;
+        }
+
+        .leader-key .form-group input {
+          letter-spacing: 0.08em;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .leader-key {
+            transition: none;
+          }
+        }
+
         .login-link {
           margin-top: 20px;
           text-align: center;
@@ -787,6 +888,37 @@ export default function Registration() {
                 <option value="Welfare">Welfare Team</option>
                 <option value="Media">Media & Technical</option>
               </select>
+            </div>
+          </div>
+
+          {/* Slides open only when "Leader" is selected. */}
+          <div className={`leader-key ${isLeaderSignup ? 'is-open' : ''}`} aria-hidden={!isLeaderSignup}>
+            <div className="leader-key-inner">
+              <div className="leader-key-panel">
+                <div className="leader-key-head">
+                  <span className="leader-key-icon"><LockIcon width={16} height={16} /></span>
+                  <div>
+                    <strong>Leadership verification required</strong>
+                    <span>Leader accounts get full Command Center access immediately.</span>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="reg-leader-key">Leader Verification Passcode</label>
+                  <input
+                    id="reg-leader-key"
+                    type="password"
+                    name="leaderPasscode"
+                    value={leaderPasscode}
+                    onChange={(e) => setLeaderPasscode(e.target.value)}
+                    placeholder="Enter official leader key"
+                    autoComplete="off"
+                    maxLength={200}
+                    disabled={!isLeaderSignup}
+                    tabIndex={isLeaderSignup ? 0 : -1}
+                    required={isLeaderSignup}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 

@@ -15,8 +15,12 @@ rules_version = '2';
 //               delete non-leaders; publish posts
 //   • Nobody  → sets their own fee as paid or edits their own role after registering
 //
-// NOTE: anyone may self-register with role 'leader' (a deliberate product decision),
-// which grants leader access to the full registry on sign-up.
+// Leader registration requires the Leader Verification Passcode. It is stored ONLY in
+// config/leaderRegistration { passcode: "<string>" } (set/rotate it in the Firebase
+// Console). No client can read that document; the registering browser submits its
+// guess in leaderClaims/{uid}, written in the same batch as the profile, and the
+// profile is accepted only if the two match. If the config document is missing,
+// leader registration is closed.
 // ===========================================================================
 
 service cloud.firestore {
@@ -92,6 +96,22 @@ service cloud.firestore {
         && isShortString(a.get('yearOfStudy', ''), 10);
     }
 
+    function leaderConfigPath() {
+      return /databases/$(database)/documents/config/leaderRegistration;
+    }
+
+    function leaderClaimPath(uid) {
+      return /databases/$(database)/documents/leaderClaims/$(uid);
+    }
+
+    // True when this write batch also creates leaderClaims/{uid} with the correct passcode.
+    function hasValidLeaderPasscode(uid) {
+      return exists(leaderConfigPath())
+        && existsAfter(leaderClaimPath(uid))
+        && getAfter(leaderClaimPath(uid)).data.passcode is string
+        && getAfter(leaderClaimPath(uid)).data.passcode == get(leaderConfigPath()).data.passcode;
+    }
+
     // Exact shape written by Registration.jsx.
     function isValidRegistration(uid) {
       let d = request.resource.data;
@@ -104,9 +124,10 @@ service cloud.firestore {
         && isShortString(d.fullName, 120) && d.fullName.size() > 0
         && isShortString(d.email, 254)
         && d.role in ['reader', 'member', 'associate', 'leader']
-        // Leaders are stored as approved; nobody else carries a status.
+        // Leaders must present the verification passcode and are stored as approved;
+        // nobody else carries a status.
         && (d.role == 'leader'
-              ? d.get('status', '') == 'approved'
+              ? d.get('status', '') == 'approved' && hasValidLeaderPasscode(uid)
               : !('status' in d))
         // Nobody can register themselves as paid.
         && d.membershipFeePaid == false
@@ -170,6 +191,25 @@ service cloud.firestore {
       allow delete: if isLeader()
                     && !isSelf(uid)
                     && resource.data.role != 'leader';
+    }
+
+    // ====================================================== leader passcode
+    // Write-once, never readable. Only valid as part of the registrant's own leader
+    // profile batch (the users rule above performs the passcode comparison).
+    match /leaderClaims/{uid} {
+      allow create: if isSelf(uid)
+                    && request.resource.data.keys().hasOnly(['passcode', 'createdAt'])
+                    && isShortString(request.resource.data.passcode, 200)
+                    && request.resource.data.createdAt == request.time
+                    && !exists(profilePath(uid))
+                    && existsAfter(profilePath(uid))
+                    && getAfter(profilePath(uid)).data.role == 'leader';
+      allow read, update, delete: if false;
+    }
+
+    // The passcode itself: managed in the Firebase Console only.
+    match /config/{docId} {
+      allow read, write: if false;
     }
 
     // ======================================================== announcements
