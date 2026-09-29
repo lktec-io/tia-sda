@@ -31,12 +31,13 @@ import {
 } from '../../data/constants';
 import { buildCsv, downloadCsv } from '../../utils/csv';
 import { formatDate, toDate, toMillis } from '../../utils/format';
+import { logFirestoreError } from '../../utils/logFirestoreError';
 import '../../styles/leader.css';
 
 const getDbError = (error) => {
   switch (error?.code) {
     case 'permission-denied':
-      return 'Permission denied. Your leader account is not authorised for this action in the database rules.';
+      return 'Permission denied by the database rules. If this is a leader account, the latest firestore.rules may not be deployed yet — see the browser console for details.';
     case 'unavailable':
       return 'Connection to the database was lost. Changes will sync once you are back online.';
     case 'not-found':
@@ -51,7 +52,7 @@ const isoDate = (value) => {
   return date ? date.toISOString().slice(0, 10) : '';
 };
 
-// Columns for "Export Registry to CSV" â€” every field collected at registration.
+// Columns for "Export Registry to CSV" — every field collected at registration.
 // Rows are pre-enriched with academicLevel / courseCode / courseName / area (see `registry`).
 const CSV_COLUMNS = [
   { header: 'Full Name', value: (u) => u.fullName },
@@ -105,10 +106,11 @@ function FeeToggle({ paid, busy, disabled, onToggle, name }) {
 }
 
 export default function CommandCenter() {
-  const { currentUser } = useAuth();
+  const { currentUser, userRole } = useAuth();
   const [users, setUsers] = useState([]);
   const [status, setStatus] = useState('loading'); // loading | ready | error
   const [loadError, setLoadError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const [search, setSearch] = useState('');
   const [feeFilter, setFeeFilter] = useState('all');
@@ -123,23 +125,50 @@ export default function CommandCenter() {
   const [drawerId, setDrawerId] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  // Live registry â€” metrics and table update the moment anything changes.
+  // Live registry — a plain listener on the whole `users` collection (no filters),
+  // so metrics and table update the moment anything changes. Failures are logged and
+  // shown inline; the dashboard layout always stays rendered.
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      collection(db, 'users'),
-      (snapshot) => {
-        setUsers(snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data({ serverTimestamps: 'estimate' }) })));
-        setStatus('ready');
-        setLoadError(null);
-      },
-      (error) => {
-        console.error('User registry error:', error);
-        setLoadError(error);
-        setStatus('error');
-      }
-    );
-    return unsubscribe;
-  }, []);
+    const debug = { query: 'users (full registry)', uid: currentUser?.uid ?? null, role: userRole };
+
+    const fail = (error) => {
+      logFirestoreError('Member registry', error, debug);
+      setLoadError(error);
+      setStatus('error');
+    };
+
+    let unsubscribe = () => {};
+
+    try {
+      unsubscribe = onSnapshot(
+        collection(db, 'users'),
+        (snapshot) => {
+          try {
+            setUsers(
+              snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data({ serverTimestamps: 'estimate' }) }))
+            );
+            setLoadError(null);
+            setStatus('ready');
+          } catch (error) {
+            fail(error);
+          }
+        },
+        fail
+      );
+    } catch (error) {
+      // Synchronous setup failure — report asynchronously so the effect body never sets state.
+      queueMicrotask(() => fail(error));
+    }
+
+    return () => unsubscribe();
+  }, [reloadKey, currentUser?.uid, userRole]);
+
+  // Re-subscribe after an error (e.g. once corrected rules have been deployed).
+  const retryRegistry = () => {
+    setLoadError(null);
+    setStatus('loading');
+    setReloadKey((n) => n + 1);
+  };
 
   // Normalised view of every profile (legacy courses/areas mapped onto official values)
   // so filters, table and CSV all agree.
@@ -313,7 +342,14 @@ export default function CommandCenter() {
         </div>
       </div>
 
-      {status === 'error' && <Alert type="error">{getDbError(loadError)}</Alert>}
+      {status === 'error' && (
+        <Alert type="error">
+          {getDbError(loadError)}{' '}
+          <button type="button" className="btn-link" onClick={retryRegistry}>
+            Retry
+          </button>
+        </Alert>
+      )}
 
       {/* ---------- Analytics ---------- */}
       <section className="metric-grid" aria-label="Community analytics">
@@ -321,21 +357,21 @@ export default function CommandCenter() {
           tone="blue"
           icon={<UsersIcon width={20} height={20} />}
           label="Total Registered Community"
-          value={status === 'ready' ? metrics.total : 'â€”'}
+          value={status === 'ready' ? metrics.total : '—'}
           hint={status === 'ready' ? `${metrics.feesPaid} membership fee${metrics.feesPaid === 1 ? '' : 's'} paid` : 'Loading...'}
         />
         <MetricCard
           tone="gold"
           icon={<WalletIcon width={20} height={20} />}
           label="Membership Fees Outstanding"
-          value={status === 'ready' ? metrics.feesOutstanding : 'â€”'}
+          value={status === 'ready' ? metrics.feesOutstanding : '—'}
           hint={metrics.feesOutstanding > 0 ? 'Members yet to pay' : 'Everyone is paid up'}
         />
         <MetricCard
           tone="green"
           icon={<MusicIcon width={20} height={20} />}
           label="Active Choir Members"
-          value={status === 'ready' ? metrics.choir : 'â€”'}
+          value={status === 'ready' ? metrics.choir : '—'}
           hint="Registered under TUCASA Choir"
         />
       </section>
@@ -389,7 +425,7 @@ export default function CommandCenter() {
               {courseGroups.map(({ level, courses }) => (
                 <optgroup key={level.value} label={level.label}>
                   {courses.map((course) => (
-                    <option key={course.code} value={course.code}>{course.code} â€” {course.name}</option>
+                    <option key={course.code} value={course.code}>{course.code} — {course.name}</option>
                   ))}
                 </optgroup>
               ))}
@@ -477,12 +513,12 @@ export default function CommandCenter() {
                           <div>
                             <strong>{u.fullName || 'Unnamed'}{isSelf && <em className="cell-you"> (you)</em>}</strong>
                             <small>{u.email}</small>
-                            <small className="cell-joined">Joined {formatDate(u.createdAt, 'â€”')}</small>
+                            <small className="cell-joined">Joined {formatDate(u.createdAt, '—')}</small>
                           </div>
                         </div>
                       </td>
                       <td data-label="Phone">
-                        {u.phone ? <a href={`tel:${u.phone}`} className="cell-link">{u.phone}</a> : 'â€”'}
+                        {u.phone ? <a href={`tel:${u.phone}`} className="cell-link">{u.phone}</a> : '—'}
                       </td>
                       <td data-label="Access">
                         <span className={`badge ${u.role === 'leader' ? 'badge-gold' : ''}`}>
@@ -492,14 +528,14 @@ export default function CommandCenter() {
                       <td data-label="Academic">
                         <span className="cell-stack">
                           <strong>
-                            {u.courseCode || 'â€”'} Â· {formatYear(u.academicDetails?.yearOfStudy)}
+                            {u.courseCode || '—'} · {formatYear(u.academicDetails?.yearOfStudy)}
                           </strong>
                           <small>{formatAcademicLevel(u.academicLevel)}</small>
                         </span>
                       </td>
                       <td data-label="Residence">
                         <span className="cell-stack">
-                          <strong>{u.area || 'â€”'}</strong>
+                          <strong>{u.area || '—'}</strong>
                           <small>{u.houseNumber}</small>
                         </span>
                       </td>

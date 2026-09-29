@@ -34,7 +34,7 @@ function Section({ icon, title, rows }) {
         {rows.map((row) => (
           <div key={row.label}>
             <dt>{row.label}</dt>
-            <dd>{row.value || 'â€”'}</dd>
+            <dd>{row.value || '—'}</dd>
           </div>
         ))}
       </dl>

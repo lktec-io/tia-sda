@@ -41,11 +41,11 @@ export default function Overview() {
   const academic = userProfile?.academicDetails;
   const location = [canonicalArea(userProfile?.location?.residentialArea || ''), getHouseNumber(userProfile?.location)]
     .filter(Boolean)
-    .join(' Â· ');
+    .join(' · ');
 
   const snapshot = [
-    { icon: PhoneIcon, label: 'Phone', value: userProfile?.phone || 'â€”' },
-    { icon: MapPinIcon, label: 'Residence', value: location || 'â€”' },
+    { icon: PhoneIcon, label: 'Phone', value: userProfile?.phone || '—' },
+    { icon: MapPinIcon, label: 'Residence', value: location || '—' },
     { icon: BookIcon, label: 'Academic Level', value: formatAcademicLevel(getAcademicLevel(academic), { long: true }) },
     { icon: BookIcon, label: 'Course', value: formatCourse(academic) },
     { icon: BookIcon, label: 'Year of Study', value: formatYear(academic?.yearOfStudy) },
