@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createUserWithEmailAndPassword, deleteUser } from 'firebase/auth';
-import { doc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import SearchableSelect from '../components/SearchableSelect';
 import { CameraIcon, CheckIcon, CloseIcon, LockIcon } from '../components/Icons';
@@ -31,11 +31,23 @@ const INITIAL_FORM = {
   courseCode: '',
   residentialArea: '',
   houseNumber: '',
-  ministryWing: 'None'
+  ministryWing: 'None',
+  leaderPasscode: '' // only used for the client-side check; never saved to Firestore
 };
 
 const LEADER_AUTH_ERROR =
   'Authorization Failed: Invalid Leader Passcode. Please verify with the Church Secretariat.';
+
+// Client-side leader key check. NOTE: both values are compiled into the public
+// JavaScript bundle, so they are readable by anyone who inspects the site.
+const LEADER_REGISTRATION_KEY = (import.meta.env.VITE_LEADER_REGISTRATION_KEY ?? '').trim();
+const LEADER_FALLBACK_KEY = 'TucasaMbeya2026';
+
+const isValidLeaderPasscode = (typed) => {
+  const passcode = (typed ?? '').trim();
+  if (!passcode) return false;
+  return (LEADER_REGISTRATION_KEY !== '' && passcode === LEADER_REGISTRATION_KEY) || passcode === LEADER_FALLBACK_KEY;
+};
 
 const getFriendlyError = (error) => {
   switch (error?.code) {
@@ -66,10 +78,6 @@ export default function Registration() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  // Leader Verification Passcode — kept out of formData and never written to the profile.
-  // It is checked server-side by firestore.rules against config/leaderRegistration.
-  const [leaderPasscode, setLeaderPasscode] = useState('');
-
   // Profile picture (uploaded to Cloudinary the moment it is selected)
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
   const [previewUrl, setPreviewUrl] = useState('');
@@ -90,11 +98,11 @@ export default function Registration() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Switching away from "Leader" discards any typed passcode.
-    if (name === 'accessLevel' && value !== 'leader') setLeaderPasscode('');
     setFormData(prev => ({
       ...prev,
       [name]: value,
+      // Switching away from "Leader" discards any typed passcode.
+      ...(name === 'accessLevel' && value !== 'leader' ? { leaderPasscode: '' } : {}),
       // Each qualification level has its own course list — clear a course from another level.
       ...(name === 'academicLevel' && !coursesForLevel(value).some((c) => c.code === prev.courseCode)
         ? { courseCode: '' }
@@ -165,6 +173,12 @@ export default function Registration() {
     e.preventDefault();
     if (loading) return;
 
+    // Leader passcode is checked first — a wrong key never reaches Firebase Auth.
+    if (isLeaderSignup && !isValidLeaderPasscode(formData.leaderPasscode)) {
+      setMessage({ type: 'error', text: LEADER_AUTH_ERROR });
+      return;
+    }
+
     if (uploadState === 'uploading') {
       setMessage({ type: 'info', text: 'Please wait for your profile picture to finish uploading.' });
       return;
@@ -191,15 +205,8 @@ export default function Registration() {
       return;
     }
 
-    // Leader signups must present the verification passcode (checked server-side on save).
-    const passcode = leaderPasscode.trim();
-    if (isLeaderSignup && !passcode) {
-      setMessage({ type: 'error', text: LEADER_AUTH_ERROR });
-      return;
-    }
-
     setLoading(true);
-    setMessage({ type: 'info', text: isLeaderSignup ? 'Verifying leader authorization...' : 'Creating your account...' });
+    setMessage({ type: 'info', text: 'Creating your account...' });
 
     let createdUser = null;
 
@@ -208,12 +215,8 @@ export default function Registration() {
       const { user } = await createUserWithEmailAndPassword(auth, email, formData.password);
       createdUser = user;
 
-      // Profile + (for leaders) the passcode claim are committed atomically. The rules
-      // accept a leader profile ONLY if the claim matches config/leaderRegistration;
-      // otherwise the whole batch is rejected and the new auth account is rolled back.
-      const batch = writeBatch(db);
-
-      batch.set(doc(db, 'users', user.uid), {
+      // Profile payload is built field-by-field, so leaderPasscode is never saved.
+      await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         fullName: formData.fullName.trim(),
         email,
@@ -237,16 +240,7 @@ export default function Registration() {
         createdAt: serverTimestamp()
       });
 
-      if (isLeaderSignup) {
-        // Write-only document: no client can ever read leaderClaims back.
-        batch.set(doc(db, 'leaderClaims', user.uid), {
-          passcode,
-          createdAt: serverTimestamp()
-        });
-      }
-
-      await batch.commit();
-      setLeaderPasscode('');
+      setFormData((prev) => ({ ...prev, leaderPasscode: '' }));
 
       // Accounts are active immediately — leaders land in the Command Center, everyone
       // else in their personal workspace.
@@ -264,9 +258,7 @@ export default function Registration() {
         }
       }
 
-      // A rejected leader profile means the passcode did not match.
-      const leaderRejected = isLeaderSignup && createdUser && error?.code === 'permission-denied';
-      setMessage({ type: 'error', text: leaderRejected ? LEADER_AUTH_ERROR : getFriendlyError(error) });
+      setMessage({ type: 'error', text: getFriendlyError(error) });
     } finally {
       setLoading(false);
     }
@@ -908,8 +900,8 @@ export default function Registration() {
                     id="reg-leader-key"
                     type="password"
                     name="leaderPasscode"
-                    value={leaderPasscode}
-                    onChange={(e) => setLeaderPasscode(e.target.value)}
+                    value={formData.leaderPasscode}
+                    onChange={handleChange}
                     placeholder="Enter official leader key"
                     autoComplete="off"
                     maxLength={200}
