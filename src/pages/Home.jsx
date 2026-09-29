@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import AnnouncementModal from '../components/AnnouncementModal';
 import {
   ArrowRightIcon,
   BookIcon,
@@ -78,9 +79,9 @@ function PosterCanvas({ imageUrl, category }) {
   );
 }
 
-function AnnouncementCard({ announcement, expanded, onToggle }) {
+// Whole card is clickable (stretched title button) and opens the announcement modal.
+function AnnouncementCard({ announcement, onOpen }) {
   const content = announcement.content || '';
-  const isLong = content.length > EXCERPT_LENGTH;
   const published = announcement.publishedAt || announcement.createdAt;
   const publishedDate = toDate(published);
   const category = announcement.category || 'General';
@@ -102,13 +103,15 @@ function AnnouncementCard({ announcement, expanded, onToggle }) {
             {formatDate(published)}
           </time>
         </div>
-        <h3>{announcement.title || 'Untitled announcement'}</h3>
-        <p>{expanded ? content : truncate(content)}</p>
-        {isLong && (
-          <button type="button" className="btn-link" onClick={onToggle} aria-expanded={expanded}>
-            {expanded ? 'Show less' : 'Read more'}
+        <h3>
+          <button type="button" className="announcement-open" onClick={() => onOpen(announcement)} aria-haspopup="dialog">
+            {announcement.title || 'Untitled announcement'}
           </button>
-        )}
+        </h3>
+        <p>{truncate(content)}</p>
+        <span className="announcement-more" aria-hidden="true">
+          Read full announcement <ArrowRightIcon width={15} height={15} />
+        </span>
       </div>
     </article>
   );
@@ -130,20 +133,20 @@ function AnnouncementSkeleton() {
 }
 
 /**
- * Cinematic hero slideshow (sits BELOW the permanent overlay — see .hero-bg in home.css).
- *
- * Each slide runs `dynamicFadeZoom` once: fade in over the first 15%, hold, fade out
- * over the last 15%, zooming 1.00 → 1.04 throughout. The animation lasts
- * interval ÷ 0.85, so a slide's fade-out overlaps the next slide's fade-in exactly.
- *
- * `starts[i]` counts how often slide i has become active; it is part of the React key,
- * so a slide returning to the front remounts and replays its animation from 0%,
- * while the outgoing slide keeps its key and finishes its fade-out undisturbed.
+ * Shared slideshow clock for the hero background AND the hero text.
+ * Every `interval` ms the next slide becomes active.
+ * - `starts[i]` counts how often slide i has become active (part of its React key), so
+ *   a returning slide remounts and replays its zoom from 0%, while the outgoing slide
+ *   keeps its key and finishes its fade-out undisturbed.
+ * - `tick` counts transitions; the hero text alternates between two identical keyframe
+ *   names on its parity, which restarts the rise animation WITHOUT remounting the
+ *   buttons (remounting would steal keyboard focus every few seconds).
  */
-function HeroSlideshow({ slides, interval }) {
+function useHeroSlideshow(slides, interval) {
   const [slide, setSlide] = useState(() => ({
     active: 0,
     previous: null,
+    tick: 0,
     starts: slides.map((_, i) => (i === 0 ? 1 : 0))
   }));
   const [animated] = useState(
@@ -154,16 +157,26 @@ function HeroSlideshow({ slides, interval }) {
     if (!animated) return undefined;
 
     const timer = setInterval(() => {
-      setSlide(({ active, starts }) => {
+      setSlide(({ active, starts, tick }) => {
         const next = (active + 1) % slides.length;
         const nextStarts = [...starts];
         nextStarts[next] += 1;
-        return { active: next, previous: active, starts: nextStarts };
+        return { active: next, previous: active, tick: tick + 1, starts: nextStarts };
       });
     }, interval);
     return () => clearInterval(timer);
   }, [animated, slides.length, interval]);
 
+  return { slide, animated };
+}
+
+/**
+ * Cinematic hero slideshow (sits BELOW the permanent overlay — see .hero-bg in home.css).
+ * Each slide runs `dynamicFadeZoom` once: fast fade in over the first 15%, hold, fade out
+ * over the last 15%, zooming 1.00 → 1.08 throughout. The animation lasts interval ÷ 0.85,
+ * so a slide's fade-out overlaps the next slide's fade-in exactly.
+ */
+function HeroSlideshow({ slides, interval, slide, animated }) {
   return (
     <div className="hero-slides" style={{ '--slide-duration': `${Math.round(interval / 0.85)}ms` }}>
       {slides.map((src, index) => {
@@ -186,7 +199,9 @@ function HeroSlideshow({ slides, interval }) {
 export default function Home() {
   const [announcements, setAnnouncements] = useState([]);
   const [feedStatus, setFeedStatus] = useState('loading'); // loading | ready | error
-  const [expandedId, setExpandedId] = useState(null);
+  const [openAnnouncement, setOpenAnnouncement] = useState(null);
+  const closeAnnouncement = useCallback(() => setOpenAnnouncement(null), []);
+  const { slide, animated } = useHeroSlideshow(heroSlides, HERO_SLIDE_INTERVAL_MS);
 
   useEffect(() => {
     let active = true;
@@ -227,7 +242,7 @@ export default function Home() {
       {/* ================= HERO ================= */}
       <section className="hero">
         <div className="hero-bg" aria-hidden="true">
-          <HeroSlideshow slides={heroSlides} interval={HERO_SLIDE_INTERVAL_MS} />
+          <HeroSlideshow slides={heroSlides} interval={HERO_SLIDE_INTERVAL_MS} slide={slide} animated={animated} />
           <span className="hero-overlay" />
           <span className="hero-glow hero-glow-gold" />
           <span className="hero-glow hero-glow-blue" />
@@ -235,7 +250,11 @@ export default function Home() {
         </div>
 
         <div className="container hero-inner">
-          <div className="hero-copy">
+          {/* Text re-rises with every background slide (bound to the slideshow clock). */}
+          <div
+            className={`hero-copy ${animated ? (slide.tick % 2 === 0 ? 'hero-rise-a' : 'hero-rise-b') : ''}`.trim()}
+            data-slide={slide.active}
+          >
             <span className="hero-kicker">
               <span className="hero-kicker-dot" />
               Seventh-day Adventist Student Church
@@ -325,17 +344,14 @@ export default function Home() {
           {feedStatus === 'ready' && announcements.length > 0 && (
             <div className="announcement-grid">
               {announcements.map((item) => (
-                <AnnouncementCard
-                  key={item.id}
-                  announcement={item}
-                  expanded={expandedId === item.id}
-                  onToggle={() => setExpandedId((prev) => (prev === item.id ? null : item.id))}
-                />
+                <AnnouncementCard key={item.id} announcement={item} onOpen={setOpenAnnouncement} />
               ))}
             </div>
           )}
         </div>
       </section>
+
+      {openAnnouncement && <AnnouncementModal announcement={openAnnouncement} onClose={closeAnnouncement} />}
 
       {/* ================= CHOIR & MINISTRIES ================= */}
       <section className="section section-tint" id="ministries">

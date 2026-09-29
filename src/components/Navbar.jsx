@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import BrandLogo from './BrandLogo';
-import { CloseIcon, MenuIcon } from './Icons';
 
 const NAV_LINKS = [
   { href: '#announcements', label: 'Announcements' },
@@ -36,15 +35,20 @@ export default function Navbar() {
           </span>
         </Link>
 
+        {/* Three CSS bars that morph into an "X" when the menu is open. */}
         <button
           type="button"
-          className="navbar-toggle"
+          className={`navbar-toggle hamburger ${open ? 'is-open' : ''}`}
           onClick={() => setOpen((prev) => !prev)}
           aria-expanded={open}
           aria-controls="primary-nav"
           aria-label={open ? 'Close menu' : 'Open menu'}
         >
-          {open ? <CloseIcon /> : <MenuIcon />}
+          <span className="hamburger-box" aria-hidden="true">
+            <span className="hamburger-bar hamburger-bar-top" />
+            <span className="hamburger-bar hamburger-bar-mid" />
+            <span className="hamburger-bar hamburger-bar-bot" />
+          </span>
         </button>
 
         <nav id="primary-nav" className={`navbar-menu ${open ? 'is-open' : ''}`}>

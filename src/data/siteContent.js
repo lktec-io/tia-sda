@@ -12,7 +12,7 @@ export const album = {
 
 // Hero slideshow — served from /public/assets/. Cross-fades every 5 seconds.
 export const heroSlides = ['/assets/tucasa1.jpg', '/assets/tucasa2.jpg', '/assets/tucasa3.jpg'];
-export const HERO_SLIDE_INTERVAL_MS = 5000;
+export const HERO_SLIDE_INTERVAL_MS = 3500;
 
 // Confirm these times with church leadership before going live.
 // `sw` = Swahili sub-label shown in italics under the English title.
@@ -24,7 +24,17 @@ export const sabbathSchedule = [
 ];
 
 // Badge on public announcements published within the last 48 hours.
-export const latestUpdateLabel = 'LATEST UPDATE • LIKUZO RASHIDI';
+export const latestUpdateLabel = 'LATEST UPDATE • TAARIFA MPYA';
+
+// Swahili names for announcement categories (shown in the announcement modal).
+export const categorySwahili = {
+  'Sabbath Service': 'Ibada ya Sabato',
+  Choir: 'Kwaya',
+  Welfare: 'Ustawi wa Jamii',
+  Evangelism: 'Uinjilisti',
+  Fellowship: 'Ushirika',
+  General: 'Taarifa za Jumla'
+};
 
 // Swahili sub-labels for the landing page's main headings.
 export const swahiliLabels = {

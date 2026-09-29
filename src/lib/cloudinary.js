@@ -68,6 +68,12 @@ export function cloudinaryThumb(url, size = 96) {
  * Wide banner crop for event posters (default 16:9), smart-cropped around the subject,
  * auto format/quality. Non-Cloudinary URLs are returned unchanged.
  */
+/** Whole image, never cropped, capped at `width` px (for full poster viewing). */
+export function cloudinaryFit(url, width = 1200) {
+  if (!url || !url.includes('/image/upload/')) return url;
+  return url.replace('/image/upload/', `/image/upload/c_limit,w_${width},f_auto,q_auto/`);
+}
+
 export function cloudinaryBanner(url, width = 800, aspect = '16:9') {
   if (!url || !url.includes('/image/upload/')) return url;
   return url.replace('/image/upload/', `/image/upload/c_fill,g_auto,w_${width},ar_${aspect},f_auto,q_auto/`);
