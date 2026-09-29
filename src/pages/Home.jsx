@@ -21,6 +21,7 @@ import {
   choirChannels,
   heroSlides,
   fellowshipUpdates,
+  latestUpdateLabel,
   sabbathGuidelines,
   sabbathSchedule,
   shopifyStoreUrl,
@@ -33,6 +34,7 @@ import '../styles/home.css';
 
 const MAX_ANNOUNCEMENTS = 6;
 const EXCERPT_LENGTH = 160;
+const NEW_POST_WINDOW_MS = 48 * 60 * 60 * 1000; // "Latest update" badge for posts < 48 h old
 
 const truncate = (text = '', length = EXCERPT_LENGTH) =>
   text.length > length ? `${text.slice(0, length).trimEnd()}…` : text;
@@ -84,7 +86,13 @@ function AnnouncementCard({ announcement, expanded, onToggle }) {
   const category = announcement.category || 'General';
 
   return (
-    <article className="announcement-card">
+    <article className={`announcement-card ${announcement.isNew ? 'is-new' : ''}`.trim()}>
+      {announcement.isNew && (
+        <span className="new-chip">
+          <span className="pulse-dot" aria-hidden="true" />
+          {latestUpdateLabel}
+        </span>
+      )}
       <PosterCanvas imageUrl={announcement.imageUrl} category={category} />
       <div className="announcement-body">
         <div className="announcement-top">
@@ -122,32 +130,50 @@ function AnnouncementSkeleton() {
 }
 
 /**
- * Cinematic hero slideshow. Every `interval` ms the next slide becomes active and plays
- * the `dynamicFadeZoom` keyframes (1 s fade-in + slow 1.00→1.04 zoom). The outgoing
- * slide keeps its zoomed scale while it fades out, so there is never a visual jump.
+ * Cinematic hero slideshow (sits BELOW the permanent overlay — see .hero-bg in home.css).
+ *
+ * Each slide runs `dynamicFadeZoom` once: fade in over the first 15%, hold, fade out
+ * over the last 15%, zooming 1.00 → 1.04 throughout. The animation lasts
+ * interval ÷ 0.85, so a slide's fade-out overlaps the next slide's fade-in exactly.
+ *
+ * `starts[i]` counts how often slide i has become active; it is part of the React key,
+ * so a slide returning to the front remounts and replays its animation from 0%,
+ * while the outgoing slide keeps its key and finishes its fade-out undisturbed.
  */
 function HeroSlideshow({ slides, interval }) {
-  const [slide, setSlide] = useState({ active: 0, previous: null });
+  const [slide, setSlide] = useState(() => ({
+    active: 0,
+    previous: null,
+    starts: slides.map((_, i) => (i === 0 ? 1 : 0))
+  }));
+  const [animated] = useState(
+    () => slides.length > 1 && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  );
 
   useEffect(() => {
-    if (slides.length < 2) return undefined;
-    // Respect users who ask the OS for reduced motion: keep the first slide still.
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return undefined;
+    if (!animated) return undefined;
 
     const timer = setInterval(() => {
-      setSlide(({ active }) => ({ active: (active + 1) % slides.length, previous: active }));
+      setSlide(({ active, starts }) => {
+        const next = (active + 1) % slides.length;
+        const nextStarts = [...starts];
+        nextStarts[next] += 1;
+        return { active: next, previous: active, starts: nextStarts };
+      });
     }, interval);
     return () => clearInterval(timer);
-  }, [slides.length, interval]);
+  }, [animated, slides.length, interval]);
 
   return (
-    // Zoom lasts one full cycle plus the 1 s cross-fade, so motion never stalls.
-    <div className="hero-slides" style={{ '--slide-duration': `${interval + 1000}ms` }}>
+    <div className="hero-slides" style={{ '--slide-duration': `${Math.round(interval / 0.85)}ms` }}>
       {slides.map((src, index) => {
-        const state = index === slide.active ? 'is-active' : index === slide.previous ? 'is-leaving' : '';
+        let state = '';
+        if (index === slide.active) state = animated ? 'is-active' : 'is-static';
+        else if (animated && index === slide.previous) state = 'is-leaving';
+
         return (
           <div
-            key={src}
+            key={`${src}:${slide.starts[index]}`}
             className={`hero-slide ${state}`.trim()}
             style={{ backgroundImage: `url('${src}')` }}
           />
@@ -171,7 +197,14 @@ export default function Home() {
       .then(({ fetchPublicAnnouncements }) => fetchPublicAnnouncements(MAX_ANNOUNCEMENTS))
       .then((items) => {
         if (!active) return;
-        setAnnouncements(items);
+        // Flag posts published within the last 48 hours (evaluated once, at load time).
+        const loadedAt = Date.now();
+        setAnnouncements(
+          items.map((item) => {
+            const published = toDate(item.publishedAt || item.createdAt);
+            return { ...item, isNew: Boolean(published) && loadedAt - published.getTime() <= NEW_POST_WINDOW_MS };
+          })
+        );
         setFeedStatus('ready');
       })
       .catch((error) => {

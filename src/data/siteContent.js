@@ -23,6 +23,9 @@ export const sabbathSchedule = [
   { time: 'Saturday · 3:30 PM', title: 'Adventist Youth (AY)', sw: 'Vijana wa Kiadventista', detail: 'Youth programs and fellowship.' }
 ];
 
+// Badge on public announcements published within the last 48 hours.
+export const latestUpdateLabel = 'LATEST UPDATE • LIKUZO RASHIDI';
+
 // Swahili sub-labels for the landing page's main headings.
 export const swahiliLabels = {
   sabbathGlance: 'Muhtasari wa Sabato',

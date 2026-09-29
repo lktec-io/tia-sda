@@ -161,22 +161,32 @@
   color: var(--white);
 }
 
+/* Background stack. `isolation: isolate` + z-index 0 make .hero-bg its OWN stacking
+   context, so nothing inside it (slides, overlay, glows) can ever paint above the
+   hero copy (.hero-inner):
+     z 1  .hero-slides   — photos (animated)
+     z 2  .hero-overlay  — permanent dark church gradient (never animated)
+     z 2  glows / grid   — decorative accents above the overlay */
 .hero-bg {
   position: absolute;
   inset: 0;
+  z-index: 0;
+  isolation: isolate;
   pointer-events: none;
 }
 
-/* Slideshow: slides are stacked. The active slide plays dynamicFadeZoom (1 s fade-in
-   plus a slow 1.00 → 1.04 zoom across the whole cycle); the outgoing slide holds its
-   zoomed scale while it fades out, so the hand-over is seamless. */
 .hero-slides {
   position: absolute;
   inset: 0;
+  z-index: 1;
   overflow: hidden;
-  --slide-duration: 6000ms;
+  --slide-duration: 5882ms;
 }
 
+/* Every slide is transparent until it runs dynamicFadeZoom. Active and leaving slides
+   share the SAME animation, so a slide's class switching from active → leaving does
+   not restart it: it simply finishes its own 85–100% fade-out while the next slide
+   fades in over the identical time window — a perfectly even cross-fade. */
 .hero-slide {
   position: absolute;
   inset: 0;
@@ -185,40 +195,51 @@
   background-repeat: no-repeat;
   opacity: 0;
   transform: scale(1);
-  transition: opacity 1s ease-in-out;
   will-change: opacity, transform;
+  backface-visibility: hidden;
 }
 
-.hero-slide.is-active {
-  opacity: 1;
-  z-index: 2;
-  animation: dynamicFadeZoom var(--slide-duration) cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
+.hero-slide.is-active,
 .hero-slide.is-leaving {
-  opacity: 0;
-  z-index: 1;
-  transform: scale(1.04);
+  animation: dynamicFadeZoom var(--slide-duration) linear forwards;
 }
 
+/* Single image (or motion disabled): show it steadily, no fade-out. */
+.hero-slide.is-static {
+  opacity: 1;
+  animation: none;
+}
+
+/* 15% fade in → hold → 85–100% fade out, with a slow 1.00 → 1.04 zoom throughout.
+   The slide duration is interval ÷ 0.85, so each fade-out lines up exactly with the
+   next slide's fade-in. */
 @keyframes dynamicFadeZoom {
   0% {
     opacity: 0;
     transform: scale(1);
   }
-  /* 1 s of a 6 s cycle ≈ 16.7% — the premium opacity fade step. */
-  16.7% {
+  15% {
+    opacity: 1;
+  }
+  85% {
     opacity: 1;
   }
   100% {
-    opacity: 1;
+    opacity: 0;
     transform: scale(1.04);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* Beats the global reduced-motion rule, which would otherwise jump to the 100%
+     (transparent) frame. */
+  .hero-slide.is-active,
+  .hero-slide.is-leaving {
+    animation: none !important;
+  }
+
   .hero-slide.is-active {
-    animation: none;
+    opacity: 1;
   }
 }
 
@@ -255,22 +276,20 @@
   color: var(--gold-light) !important;
 }
 
-/* Brand-blue overlay keeps the white headline readable over any photo. */
+/* Permanent luxury overlay: sits above every photo, is never animated, so the white
+   headline keeps full contrast whatever image is fading behind it. */
 .hero-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    160deg,
-    rgba(11, 33, 56, 0.92) 0%,
-    rgba(15, 43, 70, 0.8) 45%,
-    rgba(26, 68, 108, 0.66) 100%
-  );
+  z-index: 2;
+  background: linear-gradient(to bottom, rgba(15, 43, 70, 0.85) 0%, rgba(26, 68, 108, 0.9) 100%);
 }
 
 .hero-bg::after {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: 2;
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
@@ -281,6 +300,7 @@
 
 .hero-glow {
   position: absolute;
+  z-index: 2;
   border-radius: 50%;
   filter: blur(80px);
 }
@@ -303,6 +323,7 @@
 
 .hero-ring {
   position: absolute;
+  z-index: 2;
   width: 640px;
   height: 640px;
   right: -180px;
@@ -315,9 +336,10 @@
     0 0 0 120px rgba(255, 255, 255, 0.012);
 }
 
+/* Hero copy always paints above the whole .hero-bg stack (which is z-index 0). */
 .hero-inner {
   position: relative;
-  z-index: 1;
+  z-index: 3;
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.85fr);
   align-items: center;
@@ -527,6 +549,72 @@
 
 .announcement-card:hover::before {
   opacity: 1;
+}
+
+/* "Latest update" chip for posts under 48 h old — pinned to the card's top corner */
+.announcement-card.is-new {
+  border-color: rgba(212, 175, 55, 0.55);
+}
+
+.new-chip {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+  padding: 5px 11px 5px 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(212, 175, 55, 0.55);
+  background: rgba(11, 29, 48, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #f5e6b8;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.45);
+}
+
+.pulse-dot {
+  position: relative;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d4af37;
+}
+
+.pulse-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #d4af37;
+  animation: pulseRing 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes pulseRing {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot::after {
+    animation: none;
+  }
 }
 
 /* Poster canvas (16:9): leader-uploaded image or deep gradient fallback */
