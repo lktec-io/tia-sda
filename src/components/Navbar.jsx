@@ -31,8 +31,8 @@ export default function Navbar() {
         <Link to="/" className="navbar-brand" onClick={closeMenu}>
           <BrandLogo />
           <span className="navbar-brand-text">
-            <strong>TUCASA</strong>
-            <small>TIA Mbeya · SDA Student Church</small>
+            <strong>TIA SDA CHURCH</strong>
+            <small>TUCASA TIA Mbeya</small>
           </span>
         </Link>
 

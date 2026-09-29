@@ -66,7 +66,9 @@ export default function Dashboard() {
 
   const fullName = userProfile?.fullName || currentUser?.email || 'Member';
   const statusLabel = `Active ${formatRole(userProfile)}`;
-  const pageTitle = PAGE_TITLES[pathname.replace(/\/$/, '')] || 'Member Portal';
+  const cleanPath = pathname.replace(/\/$/, '');
+  const pageTitle =
+    PAGE_TITLES[cleanPath] || (cleanPath.startsWith('/leader/publish/') ? 'Edit Announcement' : 'Member Portal');
 
   useEffect(() => {
     if (!drawerOpen) return undefined;

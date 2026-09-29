@@ -1,4 +1,4 @@
-// Cloudinary unsigned uploads for profile pictures.
+// Cloudinary unsigned uploads for profile pictures and announcement posters.
 // Env: VITE_CLOUDINARY_CLOUD_NAME, VITE_CLOUDINARY_UPLOAD_PRESET (an *unsigned* preset).
 
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME?.trim();
@@ -62,4 +62,13 @@ export async function uploadImage(file, { signal } = {}) {
 export function cloudinaryThumb(url, size = 96) {
   if (!url || !url.includes('/image/upload/')) return url;
   return url.replace('/image/upload/', `/image/upload/c_fill,g_face,w_${size},h_${size},f_auto,q_auto/`);
+}
+
+/**
+ * Wide banner crop for event posters (default 16:9), smart-cropped around the subject,
+ * auto format/quality. Non-Cloudinary URLs are returned unchanged.
+ */
+export function cloudinaryBanner(url, width = 800, aspect = '16:9') {
+  if (!url || !url.includes('/image/upload/')) return url;
+  return url.replace('/image/upload/', `/image/upload/c_fill,g_auto,w_${width},ar_${aspect},f_auto,q_auto/`);
 }

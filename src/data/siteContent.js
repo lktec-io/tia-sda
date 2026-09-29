@@ -15,12 +15,24 @@ export const heroSlides = ['/assets/tucasa1.jpg', '/assets/tucasa2.jpg', '/asset
 export const HERO_SLIDE_INTERVAL_MS = 5000;
 
 // Confirm these times with church leadership before going live.
+// `sw` = Swahili sub-label shown in italics under the English title.
 export const sabbathSchedule = [
-  { time: 'Friday · Sunset', title: 'Vespers', detail: 'Welcoming the Sabbath with praise and prayer.' },
-  { time: 'Saturday · 9:00 AM', title: 'Sabbath School', detail: 'Lesson study in small groups.' },
-  { time: 'Saturday · 11:00 AM', title: 'Divine Service', detail: 'Main worship service and sermon.' },
-  { time: 'Saturday · 3:30 PM', title: 'Adventist Youth (AY)', detail: 'Youth programs and fellowship.' }
+  { time: 'Friday · Sunset', title: 'Vespers', sw: 'Ibada ya Jioni', detail: 'Welcoming the Sabbath with praise and prayer.' },
+  { time: 'Saturday · 9:00 AM', title: 'Sabbath School', sw: 'Shule ya Sabato', detail: 'Lesson study in small groups.' },
+  { time: 'Saturday · 11:00 AM', title: 'Divine Service', sw: 'Ibada Kuu', detail: 'Main worship service and sermon.' },
+  { time: 'Saturday · 3:30 PM', title: 'Adventist Youth (AY)', sw: 'Vijana wa Kiadventista', detail: 'Youth programs and fellowship.' }
 ];
+
+// Swahili sub-labels for the landing page's main headings.
+export const swahiliLabels = {
+  sabbathGlance: 'Muhtasari wa Sabato',
+  announcements: 'Matangazo ya Kanisa',
+  ministries: 'Kwaya na Huduma za Kanisa',
+  sabbathGuidelines: 'Miongozo ya Ibada ya Sabato',
+  fellowship: 'Habari za Ushirika wa Wanafunzi',
+  welfare: 'Huduma za Ustawi',
+  join: 'Jiunge na Familia ya TUCASA'
+};
 
 export const sabbathGuidelines = [
   'Arrive early and prepare your heart before service begins.',

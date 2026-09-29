@@ -24,9 +24,11 @@ import {
   sabbathGuidelines,
   sabbathSchedule,
   shopifyStoreUrl,
+  swahiliLabels,
   welfarePrograms
 } from '../data/siteContent';
 import { formatDate, toDate } from '../utils/format';
+import { cloudinaryBanner } from '../lib/cloudinary';
 import '../styles/home.css';
 
 const MAX_ANNOUNCEMENTS = 6;
@@ -40,28 +42,66 @@ const CHANNEL_ICONS = {
   youtube: YouTubeIcon
 };
 
+// Swahili sub-label rendered in soft italics beneath an English heading.
+function Sw({ children, className = '' }) {
+  return (
+    <span className={`sw-label ${className}`.trim()} lang="sw">
+      {children}
+    </span>
+  );
+}
+
+// Poster canvas: the leader-uploaded event poster, or a deep gradient fallback.
+function PosterCanvas({ imageUrl, category }) {
+  const [failedUrl, setFailedUrl] = useState(null);
+  const showImage = imageUrl && failedUrl !== imageUrl;
+
+  return (
+    <div className={`announcement-poster ${showImage ? 'has-image' : ''}`}>
+      {showImage ? (
+        <img
+          src={cloudinaryBanner(imageUrl, 800)}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailedUrl(imageUrl)}
+        />
+      ) : (
+        <span className="announcement-poster-fallback" aria-hidden="true">
+          <CalendarIcon width={30} height={30} />
+          <span>{category}</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
 function AnnouncementCard({ announcement, expanded, onToggle }) {
   const content = announcement.content || '';
   const isLong = content.length > EXCERPT_LENGTH;
   const published = announcement.publishedAt || announcement.createdAt;
   const publishedDate = toDate(published);
+  const category = announcement.category || 'General';
 
   return (
     <article className="announcement-card">
-      <div className="announcement-top">
-        <span className="badge">{announcement.category || 'General'}</span>
-        <time className="announcement-date" dateTime={publishedDate ? publishedDate.toISOString() : undefined}>
-          <CalendarIcon width={16} height={16} />
-          {formatDate(published)}
-        </time>
+      <PosterCanvas imageUrl={announcement.imageUrl} category={category} />
+      <div className="announcement-body">
+        <div className="announcement-top">
+          <span className="badge">{category}</span>
+          <time className="announcement-date" dateTime={publishedDate ? publishedDate.toISOString() : undefined}>
+            <CalendarIcon width={16} height={16} />
+            {formatDate(published)}
+          </time>
+        </div>
+        <h3>{announcement.title || 'Untitled announcement'}</h3>
+        <p>{expanded ? content : truncate(content)}</p>
+        {isLong && (
+          <button type="button" className="btn-link" onClick={onToggle} aria-expanded={expanded}>
+            {expanded ? 'Show less' : 'Read more'}
+          </button>
+        )}
       </div>
-      <h3>{announcement.title || 'Untitled announcement'}</h3>
-      <p>{expanded ? content : truncate(content)}</p>
-      {isLong && (
-        <button type="button" className="btn-link" onClick={onToggle} aria-expanded={expanded}>
-          {expanded ? 'Show less' : 'Read more'}
-        </button>
-      )}
     </article>
   );
 }
@@ -69,18 +109,25 @@ function AnnouncementCard({ announcement, expanded, onToggle }) {
 function AnnouncementSkeleton() {
   return (
     <div className="announcement-card is-skeleton" aria-hidden="true">
-      <div className="skeleton skeleton-badge" />
-      <div className="skeleton skeleton-title" />
-      <div className="skeleton skeleton-line" />
-      <div className="skeleton skeleton-line" />
-      <div className="skeleton skeleton-line short" />
+      <div className="announcement-poster skeleton" />
+      <div className="announcement-body">
+        <div className="skeleton skeleton-badge" />
+        <div className="skeleton skeleton-title" />
+        <div className="skeleton skeleton-line" />
+        <div className="skeleton skeleton-line" />
+        <div className="skeleton skeleton-line short" />
+      </div>
     </div>
   );
 }
 
-// Full-bleed background slideshow: stacked slides cross-fade via CSS opacity transitions.
+/**
+ * Cinematic hero slideshow. Every `interval` ms the next slide becomes active and plays
+ * the `dynamicFadeZoom` keyframes (1 s fade-in + slow 1.00→1.04 zoom). The outgoing
+ * slide keeps its zoomed scale while it fades out, so there is never a visual jump.
+ */
 function HeroSlideshow({ slides, interval }) {
-  const [active, setActive] = useState(0);
+  const [slide, setSlide] = useState({ active: 0, previous: null });
 
   useEffect(() => {
     if (slides.length < 2) return undefined;
@@ -88,20 +135,24 @@ function HeroSlideshow({ slides, interval }) {
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return undefined;
 
     const timer = setInterval(() => {
-      setActive((current) => (current + 1) % slides.length);
+      setSlide(({ active }) => ({ active: (active + 1) % slides.length, previous: active }));
     }, interval);
     return () => clearInterval(timer);
   }, [slides.length, interval]);
 
   return (
-    <div className="hero-slides">
-      {slides.map((src, index) => (
-        <div
-          key={src}
-          className={`hero-slide ${index === active ? 'is-active' : ''}`}
-          style={{ backgroundImage: `url('${src}')` }}
-        />
-      ))}
+    // Zoom lasts one full cycle plus the 1 s cross-fade, so motion never stalls.
+    <div className="hero-slides" style={{ '--slide-duration': `${interval + 1000}ms` }}>
+      {slides.map((src, index) => {
+        const state = index === slide.active ? 'is-active' : index === slide.previous ? 'is-leaving' : '';
+        return (
+          <div
+            key={src}
+            className={`hero-slide ${state}`.trim()}
+            style={{ backgroundImage: `url('${src}')` }}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -186,14 +237,17 @@ export default function Home() {
               <span className="hero-card-icon"><ClockIcon width={18} height={18} /></span>
               <div>
                 <strong>Sabbath at a glance</strong>
-                <span>Every week on campus</span>
+                <Sw>{swahiliLabels.sabbathGlance}</Sw>
               </div>
             </div>
             <ul className="hero-schedule">
               {sabbathSchedule.map((item) => (
                 <li key={item.title}>
                   <span className="hero-schedule-time">{item.time}</span>
-                  <span className="hero-schedule-title">{item.title}</span>
+                  <span className="hero-schedule-title">
+                    {item.title}
+                    {item.sw && <Sw>{item.sw}</Sw>}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -209,7 +263,8 @@ export default function Home() {
         <div className="container">
           <div className="section-head">
             <span className="eyebrow">Latest News</span>
-            <h2 className="section-title">Public Announcements</h2>
+            <h2 className="section-title">Announcements</h2>
+            <Sw className="sw-section">{swahiliLabels.announcements}</Sw>
             <p className="section-lead">
               Stay up to date with services, events and programs from the TUCASA TIA Mbeya family.
             </p>
@@ -255,6 +310,7 @@ export default function Home() {
           <div className="section-head">
             <span className="eyebrow">Choir & Campus Ministries</span>
             <h2 className="section-title">Serving Through Song and Fellowship</h2>
+            <Sw className="sw-section">{swahiliLabels.ministries}</Sw>
             <p className="section-lead">
               From the choir loft to the hostel Bible study, there is a place for every student to serve.
             </p>
@@ -327,11 +383,15 @@ export default function Home() {
             <article className="ministry-card">
               <div className="ministry-icon"><BookIcon /></div>
               <h3>Sabbath Service Guidelines</h3>
+              <Sw className="sw-card">{swahiliLabels.sabbathGuidelines}</Sw>
               <ul className="ministry-schedule">
                 {sabbathSchedule.map((item) => (
                   <li key={item.title}>
                     <span>{item.time}</span>
-                    <strong>{item.title}</strong>
+                    <strong>
+                      {item.title}
+                      {item.sw && <Sw>{item.sw}</Sw>}
+                    </strong>
                   </li>
                 ))}
               </ul>
@@ -345,6 +405,7 @@ export default function Home() {
             <article className="ministry-card">
               <div className="ministry-icon"><UsersIcon /></div>
               <h3>Student Fellowship Updates</h3>
+              <Sw className="sw-card">{swahiliLabels.fellowship}</Sw>
               <ul className="ministry-list">
                 {fellowshipUpdates.map((item) => (
                   <li key={item.title}>
@@ -358,6 +419,7 @@ export default function Home() {
             <article className="ministry-card">
               <div className="ministry-icon"><HeartIcon /></div>
               <h3>Welfare Programs</h3>
+              <Sw className="sw-card">{swahiliLabels.welfare}</Sw>
               <ul className="ministry-list">
                 {welfarePrograms.map((item) => (
                   <li key={item.title}>
@@ -376,6 +438,7 @@ export default function Home() {
         <div className="container join-band-inner">
           <div>
             <h2>Become part of the TUCASA family</h2>
+            <Sw className="sw-band">{swahiliLabels.join}</Sw>
             <p>Register as a reader, member or associate and stay connected with everything happening on campus.</p>
           </div>
           <div className="join-band-actions">

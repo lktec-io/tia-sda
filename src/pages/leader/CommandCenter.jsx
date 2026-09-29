@@ -6,6 +6,7 @@ import Alert from '../../components/Alert';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import MemberAvatar from '../../components/MemberAvatar';
 import MemberDrawer from '../../components/MemberDrawer';
+import PublishedAnnouncements from './PublishedAnnouncements';
 import {
   DownloadIcon,
   FileIcon,
@@ -582,6 +583,8 @@ export default function CommandCenter() {
           </div>
         )}
       </section>
+
+      <PublishedAnnouncements />
 
       <MemberDrawer
         member={drawerMember}

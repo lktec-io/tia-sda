@@ -321,6 +321,39 @@ describe('Leadership Command Center', () => {
 });
 
 // ---------------------------------------------------------------------------
+describe('Announcement posters & Edit Mode', () => {
+  test('leader can publish with a Cloudinary poster', async () => {
+    await assertSucceeds(addDoc(collection(as('leader1'), 'announcements'), post('leader1', ['reader'], { imageUrl: PHOTO })));
+  });
+
+  test('poster must be hosted on Cloudinary', async () => {
+    await assertFails(
+      addDoc(collection(as('leader1'), 'announcements'), post('leader1', ['reader'], { imageUrl: 'https://evil.example.com/x.jpg' }))
+    );
+  });
+
+  test('leader can edit content and poster, stamped with updatedBy/updatedAt', async () => {
+    await assertSucceeds(
+      updateDoc(doc(as('leader2'), 'announcements/public'), {
+        title: 'Updated title',
+        imageUrl: PHOTO,
+        updatedBy: 'leader2',
+        updatedAt: serverTimestamp()
+      })
+    );
+  });
+
+  test('edit cannot forge updatedBy or change the original author/date', async () => {
+    await assertFails(updateDoc(doc(as('leader2'), 'announcements/public'), { updatedBy: 'leader1' }));
+    await assertFails(updateDoc(doc(as('leader2'), 'announcements/public'), { authorName: 'Someone else' }));
+    await assertFails(updateDoc(doc(as('leader2'), 'announcements/public'), { publishedAt: new Date('2020-01-01') }));
+  });
+
+  test('member cannot edit an announcement', async () => {
+    await assertFails(updateDoc(doc(as('member1'), 'announcements/public'), { title: 'Hacked' }));
+  });
+});
+
 describe('Announcement publishing', () => {
   test('leader can publish under their own uid', async () => {
     await assertSucceeds(addDoc(collection(as('leader1'), 'announcements'), post('leader1', ['member', 'associate'])));

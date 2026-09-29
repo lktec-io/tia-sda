@@ -43,6 +43,7 @@ const App = () => {
                 <Route element={<LeaderGuard />}>
                   <Route path="/leader" element={<CommandCenter />} />
                   <Route path="/leader/publish" element={<AnnouncementPublisher />} />
+                  <Route path="/leader/publish/:announcementId" element={<AnnouncementPublisher />} />
                 </Route>
               </Route>
             </Route>
