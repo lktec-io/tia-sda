@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ArrowRightIcon, CalendarIcon, ChurchIcon } from './Icons';
+import { ArrowRightIcon, CalendarIcon, ChurchIcon, ClockIcon } from './Icons';
 import { categorySwahili, latestUpdateLabel } from '../data/siteContent';
 import { cloudinaryBanner } from '../lib/cloudinary';
-import { formatDate, toDate } from '../utils/format';
+import { formatDate, formatLongDate, toDate } from '../utils/format';
+import { effectiveDate, issuerOf } from '../utils/announcements';
 import '../styles/announcement-card.css';
 
 const EXCERPT_LENGTH = 160;
@@ -46,8 +47,8 @@ function PosterCanvas({ imageUrl, category }) {
  */
 export default function PublicAnnouncementCard({ announcement, onOpen }) {
   const content = announcement.content || '';
-  const published = announcement.publishedAt || announcement.createdAt;
-  const publishedDate = toDate(published);
+  const publishedDate = effectiveDate(announcement);
+  const eventDate = toDate(announcement.eventDate);
   const category = announcement.category || 'General';
   const clickable = typeof onOpen === 'function';
   const title = announcement.title || 'Untitled announcement';
@@ -73,11 +74,30 @@ export default function PublicAnnouncementCard({ announcement, onOpen }) {
             {category}
             {categorySwahili[category] && <em lang="sw"> · {categorySwahili[category]}</em>}
           </span>
-          <time className="announcement-date" dateTime={publishedDate ? publishedDate.toISOString() : undefined}>
-            <CalendarIcon width={15} height={15} />
-            {formatDate(published)}
-          </time>
         </div>
+
+        <dl className="announcement-dates">
+          <div>
+            <dt>
+              <ClockIcon width={13} height={13} />
+              <span lang="sw">Imetumwa Lini:</span>
+            </dt>
+            <dd>
+              <time dateTime={publishedDate ? publishedDate.toISOString() : undefined}>{formatDate(publishedDate)}</time>
+            </dd>
+          </div>
+          {eventDate && (
+            <div className="is-event">
+              <dt>
+                <CalendarIcon width={13} height={13} />
+                <span lang="sw">Tarehe ya Tukio:</span>
+              </dt>
+              <dd>
+                <time dateTime={eventDate.toISOString()}>{formatLongDate(eventDate)}</time>
+              </dd>
+            </div>
+          )}
+        </dl>
 
         <h3>
           {clickable ? (
@@ -90,6 +110,7 @@ export default function PublicAnnouncementCard({ announcement, onOpen }) {
         </h3>
 
         <p>{truncate(content)}</p>
+        <span className="announcement-issuer">{issuerOf(announcement)}</span>
 
         {clickable && (
           <span className="announcement-more" aria-hidden="true">

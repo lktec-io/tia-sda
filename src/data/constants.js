@@ -85,6 +85,21 @@ export const ANNOUNCEMENT_CATEGORIES = [
   'General'
 ];
 
+// Office that issued an announcement ("Source Authority"). Stored verbatim as `issuedBy`.
+// Keep in sync with the issuedBy list in firestore.rules.
+export const DEFAULT_ISSUER = 'Katibu / Church Secretary';
+
+export const ISSUING_AUTHORITIES = [
+  DEFAULT_ISSUER,
+  'Mwenyekiti (Chairperson)',
+  'Makamu Mwenyekiti',
+  'Hazina (Treasurer)',
+  'Idara ya Ustawi (Welfare)',
+  'Idara ya Muziki/Kwaya',
+  'Evangelism Leader',
+  'Media/Technical Team'
+];
+
 // Maps a category to its badge colour class (see .cat-* in dashboard.css).
 export const CATEGORY_CLASS = {
   'Sabbath Service': 'cat-sabbath',

@@ -13,6 +13,7 @@ import {
   HeartIcon,
   InstagramIcon,
   MusicIcon,
+  SearchIcon,
   ShopIcon,
   UsersIcon,
   YouTubeIcon
@@ -31,6 +32,8 @@ import {
 } from '../data/siteContent';
 import { isAnnouncementLive, isRecentAnnouncement } from '../utils/announcements';
 import NewAnnouncementRibbon from '../components/NewAnnouncementRibbon';
+import ViewToggle from '../components/ViewToggle';
+import useViewMode from '../hooks/useViewMode';
 import '../styles/home.css';
 
 const MAX_ANNOUNCEMENTS = 6;
@@ -182,6 +185,8 @@ export default function Home() {
   const [openAnnouncement, setOpenAnnouncement] = useState(null);
   const closeAnnouncement = useCallback(() => setOpenAnnouncement(null), []);
   const { slide, animated } = useHeroSlideshow(heroSlides, HERO_SLIDE_INTERVAL_MS);
+  const [feedView, setFeedView] = useViewMode('home-feed', 'grid');
+  const [feedSearch, setFeedSearch] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -222,6 +227,16 @@ export default function Home() {
         .map((item) => ({ ...item, isNew: isRecentAnnouncement(item, feed.now) })),
     [feed]
   );
+
+  // Live search over the visible public posts (title, content, category, issuing office).
+  const searchTerm = feedSearch.trim().toLowerCase();
+  const shownAnnouncements = searchTerm
+    ? announcements.filter((item) =>
+        [item.title, item.content, item.category, item.issuedBy]
+          .filter(Boolean)
+          .some((value) => value.toLowerCase().includes(searchTerm))
+      )
+    : announcements;
 
   const [videoFailed, setVideoFailed] = useState(false);
   const youtube = choirChannels.find((channel) => channel.platform === 'youtube');
@@ -310,7 +325,7 @@ export default function Home() {
           </div>
 
           {feedStatus === 'loading' && (
-            <div className="announcement-masonry" role="status" aria-label="Loading announcements">
+            <div className="announcement-layout is-grid" role="status" aria-label="Loading announcements">
               {Array.from({ length: 3 }, (_, i) => <AnnouncementSkeleton key={i} />)}
             </div>
           )}
@@ -331,11 +346,33 @@ export default function Home() {
           {feedStatus === 'ready' && announcements.some((item) => item.isNew) && <NewAnnouncementRibbon />}
 
           {feedStatus === 'ready' && announcements.length > 0 && (
-            <div className="announcement-masonry">
-              {announcements.map((item) => (
-                <PublicAnnouncementCard key={item.id} announcement={item} onOpen={setOpenAnnouncement} />
-              ))}
-            </div>
+            <>
+              <div className="list-toolbar feed-toolbar">
+                <label className="toolbar-search toolbar-search-dark">
+                  <SearchIcon width={17} height={17} />
+                  <span className="sr-only">Search announcements</span>
+                  <input
+                    type="search"
+                    value={feedSearch}
+                    onChange={(e) => setFeedSearch(e.target.value)}
+                    placeholder="Search announcements..."
+                  />
+                </label>
+                <ViewToggle value={feedView} onChange={setFeedView} label="Announcement layout" tone="dark" />
+              </div>
+
+              {shownAnnouncements.length === 0 ? (
+                <div className="feed-state">
+                  <p>No announcements match “{feedSearch.trim()}”.</p>
+                </div>
+              ) : (
+                <div className={`announcement-layout is-${feedView}`}>
+                  {shownAnnouncements.map((item) => (
+                    <PublicAnnouncementCard key={item.id} announcement={item} onOpen={setOpenAnnouncement} />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </section>

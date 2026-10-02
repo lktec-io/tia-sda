@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import useDirectory from '../../hooks/useDirectory';
 import useRegistry from '../../hooks/useRegistry';
+import useViewMode from '../../hooks/useViewMode';
+import ViewToggle from '../../components/ViewToggle';
 import Alert from '../../components/Alert';
 import MemberAvatar from '../../components/MemberAvatar';
 import { BookIcon, HeartIcon, HomeIcon, LockIcon, PhoneIcon, SearchIcon, UsersIcon, WalletIcon } from '../../components/Icons';
@@ -52,6 +54,7 @@ function DirectoryGallery({ entries, status, error, retry, showPrivate }) {
   const [course, setCourse] = useState('All');
   const [ministry, setMinistry] = useState('All');
   const [letter, setLetter] = useState('All');
+  const [view, setView] = useViewMode('directory', 'grid');
 
   // Only courses that someone in the flock is actually enrolled in.
   const courseOptions = useMemo(() => {
@@ -126,7 +129,7 @@ function DirectoryGallery({ entries, status, error, retry, showPrivate }) {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name or course..."
+              placeholder="Search by full name or course..."
             />
           </label>
 
@@ -191,15 +194,18 @@ function DirectoryGallery({ entries, status, error, retry, showPrivate }) {
 
       {status === 'ready' && (
         <>
-          <p className="directory-count" aria-live="polite">
-            Showing {shown} of {entries.length} {entries.length === 1 ? 'person' : 'people'}
-            {filtersActive && (
-              <>
-                {' · '}
-                <button type="button" className="btn-link" onClick={resetFilters}>Clear filters</button>
-              </>
-            )}
-          </p>
+          <div className="directory-bar">
+            <p className="directory-count" aria-live="polite">
+              Showing {shown} of {entries.length} {entries.length === 1 ? 'person' : 'people'}
+              {filtersActive && (
+                <>
+                  {' · '}
+                  <button type="button" className="btn-link" onClick={resetFilters}>Clear filters</button>
+                </>
+              )}
+            </p>
+            <ViewToggle value={view} onChange={setView} label="Directory layout" />
+          </div>
 
           {shown === 0 ? (
             <div className="panel empty-state">
@@ -214,7 +220,7 @@ function DirectoryGallery({ entries, status, error, retry, showPrivate }) {
             groups.map(([groupLetter, list]) => (
               <section key={groupLetter} className="directory-group" aria-labelledby={`dir-letter-${groupLetter}`}>
                 <h3 id={`dir-letter-${groupLetter}`} className="directory-letter">{groupLetter}</h3>
-                <ul className="directory-grid">
+                <ul className={`directory-grid is-${view}`}>
                   {list.map((entry) => (
                     <DirectoryCard key={entry.id || entry.uid} entry={entry} showPrivate={showPrivate} />
                   ))}
@@ -237,23 +243,25 @@ function DirectoryCard({ entry, showPrivate }) {
   return (
     <li className="directory-card">
       <MemberAvatar name={entry.fullName} photoUrl={entry.profilePictureUrl} size="lg" />
-      <h4>{entry.fullName || 'Unnamed member'}</h4>
+      <div className="directory-card-main">
+        <h4>{entry.fullName || 'Unnamed member'}</h4>
 
-      <p className="directory-course">
-        <BookIcon width={14} height={14} />
-        <span>
-          {entry.courseCode ? <strong>{entry.courseCode}</strong> : null}
-          {entry.courseName ? ` ${entry.courseName}` : entry.courseCode ? '' : 'Course not set'}
-        </span>
-      </p>
-
-      <div className="directory-tags">
-        {level && <span className="badge">{level}</span>}
-        {wing && (
-          <span className="badge badge-gold">
-            <HeartIcon width={12} height={12} /> {wing}
+        <p className="directory-course">
+          <BookIcon width={14} height={14} />
+          <span>
+            {entry.courseCode ? <strong>{entry.courseCode}</strong> : null}
+            {entry.courseName ? ` ${entry.courseName}` : entry.courseCode ? '' : 'Course not set'}
           </span>
-        )}
+        </p>
+
+        <div className="directory-tags">
+          {level && <span className="badge">{level}</span>}
+          {wing && (
+            <span className="badge badge-gold">
+              <HeartIcon width={12} height={12} /> {wing}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Leader-only block: these values are never fetched for non-leaders. */}

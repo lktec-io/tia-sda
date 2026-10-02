@@ -199,6 +199,130 @@
   background: rgba(212, 175, 55, 0.5);
 }
 
+/* ---------- Interactive donut ---------- */
+.donut-arc {
+  stroke-width: var(--arc-width);
+}
+
+.donut.is-interactive .donut-arc {
+  cursor: pointer;
+  outline: none;
+  transition:
+    stroke-dasharray 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+    stroke-dashoffset 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+    stroke-width 0.25s ease-out,
+    opacity 0.25s ease-out;
+}
+
+.donut.is-interactive .donut-arc:hover,
+.donut.is-interactive .donut-arc:focus-visible,
+.donut-arc.is-active {
+  stroke-width: var(--arc-width-hover);
+}
+
+.donut-arc.is-dimmed {
+  opacity: 0.35;
+}
+
+.donut-legend li.is-dimmed {
+  opacity: 0.5;
+}
+
+.donut-legend-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  margin: -6px -8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.3s ease-out;
+}
+
+.donut-legend-btn:hover {
+  background: #f8fafc;
+}
+
+.donut-legend-btn[aria-pressed='true'] {
+  border-color: rgba(212, 175, 55, 0.6);
+  background: rgba(212, 175, 55, 0.08);
+}
+
+.donut-legend-btn .donut-legend-label {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- Interactive growth chart ---------- */
+.growth-hit {
+  fill: transparent;
+  cursor: pointer;
+  outline: none;
+}
+
+.growth-hit:focus-visible {
+  stroke: #1a446c;
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+
+.growth-bar.is-hover,
+.growth-bar.is-active {
+  fill: rgba(212, 175, 55, 0.85);
+}
+
+.growth-bar.is-dimmed {
+  fill: rgba(212, 175, 55, 0.2);
+}
+
+.growth-selected {
+  fill: rgba(26, 68, 108, 0.06);
+  stroke: rgba(212, 175, 55, 0.55);
+  stroke-width: 1;
+}
+
+.growth-axis.is-active {
+  fill: #0f2b46;
+  font-weight: 900;
+}
+
+.growth-point {
+  transition: r 0.2s ease-out;
+}
+
+.growth-tip rect {
+  fill: #0f2b46;
+  filter: drop-shadow(0 6px 10px rgba(15, 43, 70, 0.3));
+}
+
+.growth-tip-title {
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 900;
+  fill: #d4af37;
+}
+
+.growth-tip-body {
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  fill: #fff;
+}
+
+.growth-hint {
+  margin-left: auto;
+  font-weight: 600;
+  font-style: italic;
+  color: #94a3b8;
+}
+
 /* ---------- Engagement chart (grouped bars) ---------- */
 .engagement {
   margin: 0;
@@ -283,5 +407,10 @@
 
   .engagement-bar {
     animation: none;
+  }
+
+  .donut.is-interactive .donut-arc,
+  .growth-point {
+    transition: none;
   }
 }

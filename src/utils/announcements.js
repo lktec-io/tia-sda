@@ -29,3 +29,6 @@ export const RECENT_WINDOW_MS = 48 * 60 * 60 * 1000;
 /** Live and went out within the last 48 hours. */
 export const isRecentAnnouncement = (a, now) =>
   isAnnouncementLive(a, now) && now - effectiveMillis(a) <= RECENT_WINDOW_MS;
+
+/** Office that issued the post, falling back to the author's name for older posts. */
+export const issuerOf = (a) => a?.issuedBy || a?.authorName || 'TUCASA Leadership';

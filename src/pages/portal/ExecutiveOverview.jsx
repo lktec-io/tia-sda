@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import useRegistry from '../../hooks/useRegistry';
 import useRegistryPrint from '../../hooks/useRegistryPrint';
@@ -32,6 +32,10 @@ export default function ExecutiveOverview() {
   const { announcements, recentCount, status: feedStatus } = useRoleAnnouncements();
   const { exportPdf, printPortal, preparing } = useRegistryPrint();
   const [notice, setNotice] = useState({ type: '', text: '' });
+  const navigate = useNavigate();
+  // Charts are interactive: a slice / month opens the Command Center registry pre-filtered.
+  const openFeeSlice = (key) => key && navigate(`/leader?fee=${encodeURIComponent(key)}#cc-registry`);
+  const openGrowthMonth = (point) => point && navigate(`/leader?joined=${encodeURIComponent(point.id)}#cc-registry`);
 
   const ledger = useMemo(() => computeLedger(members), [members]);
   const growth = useMemo(() => membershipGrowth(members, loadedAt, 6), [members, loadedAt]);
@@ -118,7 +122,7 @@ export default function ExecutiveOverview() {
         <article className="panel">
           <div className="panel-head">
             <h3><WalletIcon width={18} height={18} /> Fee Status Distribution</h3>
-            <span className="exec-chart-sub" lang="sw">Hali ya Ada</span>
+            <span className="exec-chart-sub">Click a slice to open those members</span>
           </div>
           {ready ? (
             <DonutChart
@@ -126,6 +130,7 @@ export default function ExecutiveOverview() {
               segments={feeSegments}
               centerValue={ledger.total}
               centerLabel="members"
+              onSegmentClick={openFeeSlice}
             />
           ) : (
             <div className="panel-loading"><span className="spinner" /><span>Loading ledger...</span></div>
@@ -138,7 +143,11 @@ export default function ExecutiveOverview() {
             <span className="exec-chart-sub">Last 6 months</span>
           </div>
           {ready ? (
-            <GrowthChart points={growth} title="Membership directory growth over the last six months" />
+            <GrowthChart
+              points={growth}
+              title="Membership directory growth over the last six months"
+              onPointClick={openGrowthMonth}
+            />
           ) : (
             <div className="panel-loading"><span className="spinner" /><span>Loading directory...</span></div>
           )}

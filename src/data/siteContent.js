@@ -131,19 +131,20 @@ export const welfarePrograms = [
 ];
 
 // Official social channels — the ONLY platforms linked anywhere on the site.
+// Full https:// URLs to the exact live channels (never a platform homepage).
 // `platform` picks the icon (instagram | youtube).
 export const socialChannels = [
   {
     group: 'TMC Choir',
     links: [
-      { id: 'choir-instagram', platform: 'instagram', label: 'Instagram', handle: 'TMC Choir', url: 'https://instagram.com' },
-      { id: 'choir-youtube', platform: 'youtube', label: 'YouTube', handle: 'TMC Choir', url: 'https://youtube.com' }
+      { id: 'choir-instagram', platform: 'instagram', label: 'Instagram', handle: '@tucasa_tmc', url: 'https://www.instagram.com/tucasa_tmc/' },
+      { id: 'choir-youtube', platform: 'youtube', label: 'YouTube', handle: '@tucasatiambeyachoir', url: 'https://www.youtube.com/@tucasatiambeyachoir' }
     ]
   },
   {
     group: 'TUCASA TIA Mbeya',
     links: [
-      { id: 'tucasa-youtube', platform: 'youtube', label: 'YouTube', handle: 'TUCASA TIA Mbeya', url: 'https://youtube.com' }
+      { id: 'tucasa-youtube', platform: 'youtube', label: 'YouTube', handle: '@Tucasa_tia', url: 'https://www.youtube.com/@Tucasa_tia' }
     ]
   }
 ];

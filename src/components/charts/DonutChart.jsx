@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import '../../styles/charts.css';
 
 /**
@@ -7,6 +7,10 @@ import '../../styles/charts.css';
  * Each arc is a stroked circle using stroke-dasharray/offset, so arcs animate smoothly
  * when values change. A legend with values + percentages sits beside it, and a
  * visually hidden summary is provided for screen readers.
+ *
+ * Interactive mode (pass `onSegmentClick`): arcs and legend rows become toggle buttons
+ * (mouse, touch and keyboard). `activeKey` highlights the selected segment and dims
+ * the rest; hovering an arc previews its figures in the centre.
  */
 export default function DonutChart({
   segments,
@@ -16,9 +20,13 @@ export default function DonutChart({
   centerLabel,
   title,
   showLegend = true,
-  trackColor = '#eef2f6'
+  trackColor = '#eef2f6',
+  onSegmentClick,
+  activeKey = null
 }) {
   const titleId = useId();
+  const [hoverKey, setHoverKey] = useState(null);
+  const interactive = typeof onSegmentClick === 'function';
   const radius = (size - thickness) / 2;
   const circumference = 2 * Math.PI * radius;
   const total = segments.reduce((sum, s) => sum + Math.max(0, s.value), 0);
@@ -33,12 +41,21 @@ export default function DonutChart({
     return { ...segment, fraction, length, offset };
   });
 
-  const summary = segments
-    .map((s) => `${s.label}: ${s.value} (${total > 0 ? Math.round((s.value / total) * 100) : 0}%)`)
-    .join(', ');
+  const pctOf = (value) => (total > 0 ? Math.round((value / total) * 100) : 0);
+  const summary = segments.map((s) => `${s.label}: ${s.value} (${pctOf(s.value)}%)`).join(', ');
+
+  // Centre shows the hovered (or selected) segment, otherwise the overall figure.
+  const focusKey = hoverKey || activeKey;
+  const focused = interactive && focusKey ? segments.find((s) => s.key === focusKey) : null;
+  const shownValue = focused ? focused.value : centerValue;
+  const shownLabel = focused ? `${focused.label} · ${pctOf(focused.value)}%` : centerLabel;
+
+  const toggle = (key) => interactive && onSegmentClick(activeKey === key ? null : key);
+  const stateClass = (key) =>
+    activeKey ? (activeKey === key ? 'is-active' : 'is-dimmed') : hoverKey && hoverKey !== key ? 'is-dimmed' : '';
 
   return (
-    <figure className="donut" aria-labelledby={titleId}>
+    <figure className={`donut ${interactive ? 'is-interactive' : ''}`.trim()} aria-labelledby={titleId}>
       <div className="donut-visual" style={{ width: size, maxWidth: '100%' }}>
         <svg viewBox={`0 0 ${size} ${size}`} role="img" aria-labelledby={titleId}>
           <title id={titleId}>{title ? `${title}. ${summary}` : summary}</title>
@@ -55,25 +72,45 @@ export default function DonutChart({
               arc.length > 0 ? (
                 <circle
                   key={arc.key}
-                  className="donut-arc"
+                  className={`donut-arc ${stateClass(arc.key)}`.trim()}
                   cx={size / 2}
                   cy={size / 2}
                   r={radius}
                   fill="none"
                   stroke={arc.color}
                   strokeWidth={thickness}
+                  style={{ '--arc-width': `${thickness}px`, '--arc-width-hover': `${thickness + 6}px` }}
                   strokeLinecap="butt"
                   strokeDasharray={`${arc.length} ${circumference}`}
                   strokeDashoffset={-arc.offset}
+                  {...(interactive && {
+                    role: 'button',
+                    tabIndex: 0,
+                    'aria-pressed': activeKey === arc.key,
+                    'aria-label': `${arc.label}: ${arc.value} (${pctOf(arc.value)}%). ${
+                      activeKey === arc.key ? 'Click to clear the filter.' : 'Click to filter.'
+                    }`,
+                    onClick: () => toggle(arc.key),
+                    onKeyDown: (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggle(arc.key);
+                      }
+                    },
+                    onMouseEnter: () => setHoverKey(arc.key),
+                    onMouseLeave: () => setHoverKey(null),
+                    onFocus: () => setHoverKey(arc.key),
+                    onBlur: () => setHoverKey(null)
+                  })}
                 />
               ) : null
             )}
           </g>
         </svg>
-        {(centerValue !== undefined || centerLabel) && (
+        {(shownValue !== undefined || shownLabel) && (
           <div className="donut-center" aria-hidden="true">
-            {centerValue !== undefined && <strong>{centerValue}</strong>}
-            {centerLabel && <span>{centerLabel}</span>}
+            {shownValue !== undefined && <strong>{shownValue}</strong>}
+            {shownLabel && <span>{shownLabel}</span>}
           </div>
         )}
       </div>
@@ -82,9 +119,9 @@ export default function DonutChart({
         <figcaption className="donut-legend">
           <ul>
             {segments.map((segment) => {
-              const pct = total > 0 ? Math.round((segment.value / total) * 100) : 0;
-              return (
-                <li key={segment.key}>
+              const pct = pctOf(segment.value);
+              const content = (
+                <>
                   <span className="donut-swatch" style={{ background: segment.color }} aria-hidden="true" />
                   <span className="donut-legend-label">
                     {segment.label}
@@ -94,6 +131,24 @@ export default function DonutChart({
                     {segment.value}
                     <small>{pct}%</small>
                   </span>
+                </>
+              );
+              return (
+                <li key={segment.key} className={stateClass(segment.key)}>
+                  {interactive ? (
+                    <button
+                      type="button"
+                      className="donut-legend-btn"
+                      aria-pressed={activeKey === segment.key}
+                      onClick={() => toggle(segment.key)}
+                      onMouseEnter={() => setHoverKey(segment.key)}
+                      onMouseLeave={() => setHoverKey(null)}
+                    >
+                      {content}
+                    </button>
+                  ) : (
+                    content
+                  )}
                 </li>
               );
             })}

@@ -591,3 +591,29 @@ describe('Worship duty roster (worshipSchedules/{YYYY-MM-DD})', () => {
     await assertSucceeds(deleteDoc(ref));
   });
 });
+
+describe('Announcement source authority & event date', () => {
+  test('leader can publish with an issuing office and an event date', async () => {
+    await assertSucceeds(
+      addDoc(
+        collection(as('leader1'), 'announcements'),
+        post('leader1', ['member'], { issuedBy: 'Katibu / Church Secretary', eventDate: new Date('2026-10-10T12:00') })
+      )
+    );
+    await assertSucceeds(
+      addDoc(collection(as('leader1'), 'announcements'), post('leader1', ['member'], { issuedBy: 'Idara ya Muziki/Kwaya' }))
+    );
+  });
+
+  test('unknown offices and non-timestamp event dates are rejected', async () => {
+    await assertFails(addDoc(collection(as('leader1'), 'announcements'), post('leader1', ['member'], { issuedBy: 'Pastor Bob' })));
+    await assertFails(addDoc(collection(as('leader1'), 'announcements'), post('leader1', ['member'], { eventDate: '2026-10-10' })));
+  });
+
+  test('edit can add, change and clear the event date', async () => {
+    const ref = doc(as('leader2'), 'announcements/public');
+    const stamp = { updatedBy: 'leader2', updatedAt: serverTimestamp() };
+    await assertSucceeds(updateDoc(ref, { issuedBy: 'Hazina (Treasurer)', eventDate: new Date('2026-11-01'), ...stamp }));
+    await assertSucceeds(updateDoc(ref, { eventDate: deleteField(), ...stamp }));
+  });
+});

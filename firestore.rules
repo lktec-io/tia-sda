@@ -153,8 +153,16 @@ service cloud.firestore {
       return d.keys().hasOnly([
           'title', 'category', 'content', 'visibleTo', 'imageUrl',
           'authorId', 'authorName', 'publishedAt', 'updatedAt', 'updatedBy',
-          'scheduledAt', 'expiresAt'
+          'scheduledAt', 'expiresAt', 'issuedBy', 'eventDate'
         ])
+        // Source authority (mirror of ISSUING_AUTHORITIES in src/data/constants.js).
+        && (!('issuedBy' in d) || d.issuedBy in [
+              'Katibu / Church Secretary', 'Mwenyekiti (Chairperson)', 'Makamu Mwenyekiti',
+              'Hazina (Treasurer)', 'Idara ya Ustawi (Welfare)', 'Idara ya Muziki/Kwaya',
+              'Evangelism Leader', 'Media/Technical Team'
+            ])
+        // Optional "Tarehe ya Tukio" (event date).
+        && (!('eventDate' in d) || d.eventDate is timestamp)
         // Optional scheduling window. NOTE: rules cannot filter queries, so hiding
         // scheduled/expired posts from feeds is done by the client.
         && (!('scheduledAt' in d) || d.scheduledAt is timestamp)

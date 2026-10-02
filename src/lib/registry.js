@@ -28,6 +28,15 @@ export const enrichMember = (u) => ({
   feeStatus: getFeeStatus(u)
 });
 
+/** Calendar month of a "YYYY-MM" id as [startMs, nextMs) in local time, or null. */
+export function monthBounds(id) {
+  const match = /^(\d{4})-(\d{2})$/.exec(id || '');
+  if (!match) return null;
+  const start = new Date(Number(match[1]), Number(match[2]) - 1, 1);
+  const next = new Date(Number(match[1]), Number(match[2]), 1);
+  return { start: start.getTime(), next: next.getTime(), label: start.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) };
+}
+
 /** Treasury ledger: 2,500 TZS per Semester-1 payer + 5,000 TZS per fully paid member. */
 export function computeLedger(members) {
   const fullyPaid = members.filter((u) => u.feeStatus === 'fully_paid').length;
@@ -40,7 +49,7 @@ export function computeLedger(members) {
 
 /**
  * Membership growth for the last `months` calendar months ending at `endMs`:
- * [{ label: 'Mar', added, total }]. Profiles without a createdAt count as existing
+ * [{ id: '2026-03', label: 'Mar', start, next, added, total }] (start/next = ms bounds). Profiles without a createdAt count as existing
  * before the window (they add to `total` but not to `added`).
  */
 export function membershipGrowth(members, endMs, months = 6) {
@@ -50,11 +59,19 @@ export function membershipGrowth(members, endMs, months = 6) {
   for (let i = months - 1; i >= 0; i -= 1) {
     const start = new Date(end.getFullYear(), end.getMonth() - i, 1);
     const next = new Date(end.getFullYear(), end.getMonth() - i + 1, 1);
-    buckets.push({ start: start.getTime(), next: next.getTime(), label: start.toLocaleDateString('en-GB', { month: 'short' }) });
+    buckets.push({
+      id: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`,
+      start: start.getTime(),
+      next: next.getTime(),
+      label: start.toLocaleDateString('en-GB', { month: 'short' })
+    });
   }
 
   const joinTimes = members.map((m) => toDate(m.createdAt)?.getTime() ?? -Infinity);
   return buckets.map((b) => ({
+    id: b.id,
+    start: b.start,
+    next: b.next,
     label: b.label,
     added: joinTimes.filter((t) => t >= b.start && t < b.next).length,
     total: joinTimes.filter((t) => t < b.next).length

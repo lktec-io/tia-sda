@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { doc, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { DIRECTORY_COLLECTION } from '../../lib/directory';
 import { db } from '../../firebase';
@@ -8,8 +9,12 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import MemberAvatar from '../../components/MemberAvatar';
 import MemberDrawer from '../../components/MemberDrawer';
 import FeeSegment from '../../components/FeeSegment';
+import DonutChart from '../../components/charts/DonutChart';
+import GrowthChart from '../../components/charts/GrowthChart';
 import PublishedAnnouncements from './PublishedAnnouncements';
 import {
+  ChevronDownIcon,
+  CloseIcon,
   DownloadIcon,
   FileIcon,
   MusicIcon,
@@ -30,15 +35,17 @@ import {
   formatAcademicLevel,
   formatRole,
   formatTZS,
-  formatYear
+  formatYear,
+  ministryLabel
 } from '../../data/constants';
 import useRegistry from '../../hooks/useRegistry';
 import useRegistryPrint from '../../hooks/useRegistryPrint';
-import { computeLedger, exportRegistryCsv, getRegistryError } from '../../lib/registry';
+import { computeLedger, exportRegistryCsv, getRegistryError, membershipGrowth, monthBounds } from '../../lib/registry';
 import { formatDate, toMillis } from '../../utils/format';
 import '../../styles/leader.css';
 
 const getDbError = getRegistryError;
+const FEE_VALUES = FEE_STATUSES.map((s) => s.value);
 
 function MetricCard({ icon, label, value, hint, tone }) {
   return (
@@ -50,6 +57,26 @@ function MetricCard({ icon, label, value, hint, tone }) {
       <strong className="metric-value">{value}</strong>
       <span className="metric-hint">{hint}</span>
     </article>
+  );
+}
+
+/** Numbered macro section: one clear purpose per block, generous spacing. */
+function MacroSection({ step, title, sw, lead, id, children, aside }) {
+  return (
+    <section className="cc-section" aria-labelledby={`${id}-title`} id={id}>
+      <header className="cc-section-head">
+        <span className="cc-step" aria-hidden="true">{step}</span>
+        <div className="cc-section-text">
+          <h3 id={`${id}-title`}>
+            {title}
+            {sw && <span lang="sw"> / {sw}</span>}
+          </h3>
+          {lead && <p>{lead}</p>}
+        </div>
+        {aside}
+      </header>
+      {children}
+    </section>
   );
 }
 
@@ -114,19 +141,35 @@ function TreasuryInsights({ ledger, ready }) {
   );
 }
 
+/**
+ * /leader — Leadership Command Center, organised as four macro sections:
+ *  01 Treasury & Community · 02 Interactive Analytics · 03 Member Registry · 04 Announcements.
+ * Clicking a donut slice or a growth-chart month filters the registry table instantly.
+ * Deep links: /leader?fee=unpaid|semester1_paid|fully_paid and /leader?joined=YYYY-MM.
+ */
 export default function CommandCenter() {
   const { currentUser } = useAuth();
+  const [searchParams] = useSearchParams();
   // Live, enriched registry shared with the Executive Overview (see hooks/useRegistry).
-  const { members: registry, status, error: loadError, retry: retryRegistry } = useRegistry();
-  const users = registry;
+  const { members: registry, status, error: loadError, retry: retryRegistry, loadedAt } = useRegistry();
   const { exportPdf, printPortal, preparing: preparingPdf } = useRegistryPrint();
+  const registryRef = useRef(null);
 
   const [search, setSearch] = useState('');
-  const [feeFilter, setFeeFilter] = useState('all');
+  const [feeFilter, setFeeFilter] = useState(() =>
+    FEE_VALUES.includes(searchParams.get('fee')) ? searchParams.get('fee') : 'all'
+  );
+  // { id: 'YYYY-MM', start, next, label } from a growth-chart click (or ?joined=).
+  const [joinedFilter, setJoinedFilter] = useState(() => {
+    const id = searchParams.get('joined');
+    const bounds = monthBounds(id);
+    return bounds ? { id, ...bounds } : null;
+  });
   const [levelFilter, setLevelFilter] = useState('all');
   const [courseFilter, setCourseFilter] = useState('all');
   const [yearFilter, setYearFilter] = useState('all');
   const [areaFilter, setAreaFilter] = useState('all');
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [feeBusy, setFeeBusy] = useState(() => new Set());
   const [memberToDelete, setMemberToDelete] = useState(null); // member object
@@ -134,8 +177,19 @@ export default function CommandCenter() {
   const [drawerId, setDrawerId] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  // Live treasury ledger from the whole registry.
+  const ready = status === 'ready';
+
+  // Live treasury ledger + growth series from the whole registry.
   const ledger = useMemo(() => computeLedger(registry), [registry]);
+  const growth = useMemo(() => membershipGrowth(registry, loadedAt, 6), [registry, loadedAt]);
+
+  const feeSegments = FEE_STATUSES.map((s) => ({
+    key: s.value,
+    label: s.label,
+    value: s.value === 'fully_paid' ? ledger.fullyPaid : s.value === 'semester1_paid' ? ledger.semesterPaid : ledger.unpaid,
+    color: s.chartColor,
+    detail: s.amount ? `${formatTZS(s.amount)} each` : 'Nothing collected yet'
+  }));
 
   // Course filter follows the selected level; "All levels" shows every course grouped by level.
   const courseGroups = useMemo(
@@ -175,44 +229,43 @@ export default function CommandCenter() {
     const term = search.trim().toLowerCase();
     return registry
       .filter((u) => feeFilter === 'all' || u.feeStatus === feeFilter)
+      .filter((u) => {
+        if (!joinedFilter) return true;
+        const joined = toMillis(u.createdAt);
+        return joined >= joinedFilter.start && joined < joinedFilter.next;
+      })
       .filter((u) => levelFilter === 'all' || u.academicLevel === levelFilter)
       .filter((u) => courseFilter === 'all' || u.courseCode === courseFilter)
       .filter((u) => yearFilter === 'all' || u.academicDetails?.yearOfStudy === yearFilter)
       .filter((u) => areaFilter === 'all' || u.area === areaFilter)
       .filter((u) => {
         if (!term) return true;
-        return [
-          u.fullName,
-          u.email,
-          u.phone,
-          u.courseCode,
-          u.courseName,
-          u.area,
-          u.houseNumber
-        ]
+        return [u.fullName, u.courseCode, u.courseName, u.email, u.phone, u.area, u.houseNumber]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(term));
       })
       .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
-  }, [registry, search, feeFilter, levelFilter, courseFilter, yearFilter, areaFilter]);
+  }, [registry, search, feeFilter, joinedFilter, levelFilter, courseFilter, yearFilter, areaFilter]);
 
   const drawerMember = drawerId ? registry.find((u) => u.id === drawerId) || null : null;
-  const filtersActive =
-    search ||
-    feeFilter !== 'all' ||
-    levelFilter !== 'all' ||
-    courseFilter !== 'all' ||
-    yearFilter !== 'all' ||
-    areaFilter !== 'all';
+  const advancedCount = [levelFilter, courseFilter, yearFilter, areaFilter].filter((v) => v !== 'all').length;
+  const filtersActive = Boolean(search || feeFilter !== 'all' || joinedFilter || advancedCount);
 
   const clearFilters = () => {
     setSearch('');
     setFeeFilter('all');
+    setJoinedFilter(null);
     setLevelFilter('all');
     setCourseFilter('all');
     setYearFilter('all');
     setAreaFilter('all');
   };
+
+  // Chart → registry: a click narrows the table; clicking the same slice/month again clears it.
+  const applyFeeSlice = (key) => setFeeFilter(key || 'all');
+  const applyGrowthMonth = (point) =>
+    setJoinedFilter(point ? { id: point.id, start: point.start, next: point.next, label: monthBounds(point.id)?.label || point.label } : null);
+  const jumpToRegistry = () => registryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   const closeDrawer = useCallback(() => setDrawerId(null), []);
   const cancelDelete = useCallback(() => setMemberToDelete(null), []);
@@ -285,8 +338,14 @@ export default function CommandCenter() {
   // Leaders (including yourself) can't be removed here; everyone else can.
   const canDelete = (u) => u.id !== currentUser.uid && u.role !== 'leader';
 
+  const activeChips = [
+    feeFilter !== 'all' && { key: 'fee', label: `Fee: ${feeStatusInfo(feeFilter).label}`, clear: () => setFeeFilter('all') },
+    joinedFilter && { key: 'joined', label: `Joined: ${joinedFilter.label}`, clear: () => setJoinedFilter(null) },
+    search.trim() && { key: 'search', label: `“${search.trim()}”`, clear: () => setSearch('') }
+  ].filter(Boolean);
+
   return (
-    <div className="view">
+    <div className="view cc">
       <div className="view-head">
         <div>
           <h2>Leadership Command Center</h2>
@@ -307,260 +366,376 @@ export default function CommandCenter() {
         </Alert>
       )}
 
-      {/* ---------- Treasury (top layer) ---------- */}
-      <TreasuryInsights ledger={ledger} ready={status === 'ready'} />
+      {/* ---------- 01 Treasury & community ---------- */}
+      <MacroSection
+        step="01"
+        id="cc-treasury"
+        title="Treasury & Community"
+        sw="Hazina na Jumuiya"
+        lead="Collected fees, outstanding balances and the size of the flock — updated live."
+      >
+        <TreasuryInsights ledger={ledger} ready={ready} />
 
-      {/* ---------- Analytics ---------- */}
-      <section className="metric-grid" aria-label="Community analytics">
-        <MetricCard
-          tone="blue"
-          icon={<UsersIcon width={20} height={20} />}
-          label="Total Registered Community"
-          value={status === 'ready' ? metrics.total : '—'}
-          hint={status === 'ready' ? `${metrics.feesPaid} fully paid for the year` : 'Loading...'}
-        />
-        <MetricCard
-          tone="gold"
-          icon={<WalletIcon width={20} height={20} />}
-          label="Not Yet Fully Paid"
-          value={status === 'ready' ? metrics.feesOutstanding : '—'}
-          hint={metrics.feesOutstanding > 0 ? 'Unpaid or Semester 1 only' : 'Everyone is paid up'}
-        />
-        <MetricCard
-          tone="green"
-          icon={<MusicIcon width={20} height={20} />}
-          label="Active Choir Members"
-          value={status === 'ready' ? metrics.choir : '—'}
-          hint="Registered under TUCASA Choir"
-        />
-      </section>
+        <div className="metric-grid" aria-label="Community analytics">
+          <MetricCard
+            tone="blue"
+            icon={<UsersIcon width={20} height={20} />}
+            label="Total Registered Community"
+            value={ready ? metrics.total : '—'}
+            hint={ready ? `${metrics.feesPaid} fully paid for the year` : 'Loading...'}
+          />
+          <MetricCard
+            tone="gold"
+            icon={<WalletIcon width={20} height={20} />}
+            label="Not Yet Fully Paid"
+            value={ready ? metrics.feesOutstanding : '—'}
+            hint={metrics.feesOutstanding > 0 ? 'Unpaid or Semester 1 only' : 'Everyone is paid up'}
+          />
+          <MetricCard
+            tone="green"
+            icon={<MusicIcon width={20} height={20} />}
+            label="Active Choir Members"
+            value={ready ? metrics.choir : '—'}
+            hint="Registered under TUCASA Choir"
+          />
+        </div>
+      </MacroSection>
 
-      {/* ---------- Registry ---------- */}
-      <section className="panel registry">
-        <div className="panel-head">
-          <h3>Member Management Registry</h3>
-          <span className="registry-count">
-            Showing {filteredUsers.length} of {users.length}
-          </span>
+      {/* ---------- 02 Interactive analytics ---------- */}
+      <MacroSection
+        step="02"
+        id="cc-analytics"
+        title="Interactive Analytics"
+        sw="Takwimu"
+        lead="Click a fee slice or a month to filter the member registry below. Click it again to clear."
+      >
+        <div className="cc-analytics">
+          <article className="panel">
+            <div className="panel-head">
+              <h3><WalletIcon width={18} height={18} /> Fee Status Distribution</h3>
+              {feeFilter !== 'all' && (
+                <button type="button" className="btn-link" onClick={() => setFeeFilter('all')}>Clear</button>
+              )}
+            </div>
+            {ready ? (
+              <DonutChart
+                title="Membership fee status distribution"
+                segments={feeSegments}
+                centerValue={ledger.total}
+                centerLabel="members"
+                activeKey={feeFilter === 'all' ? null : feeFilter}
+                onSegmentClick={applyFeeSlice}
+              />
+            ) : (
+              <div className="panel-loading"><span className="spinner" /><span>Loading ledger...</span></div>
+            )}
+          </article>
+
+          <article className="panel">
+            <div className="panel-head">
+              <h3><UsersIcon width={18} height={18} /> Membership Growth</h3>
+              {joinedFilter ? (
+                <button type="button" className="btn-link" onClick={() => setJoinedFilter(null)}>Clear</button>
+              ) : (
+                <span className="exec-chart-sub">Last 6 months</span>
+              )}
+            </div>
+            {ready ? (
+              <GrowthChart
+                points={growth}
+                title="Membership growth over the last six months"
+                activeId={joinedFilter?.id ?? null}
+                onPointClick={applyGrowthMonth}
+              />
+            ) : (
+              <div className="panel-loading"><span className="spinner" /><span>Loading directory...</span></div>
+            )}
+          </article>
         </div>
 
-        <div className="registry-filters">
-          <label className="filter filter-search">
-            <span className="sr-only">Search members</span>
-            <SearchIcon width={17} height={17} />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search name, email, phone, course code, area or house number"
-            />
-          </label>
+        {(feeFilter !== 'all' || joinedFilter) && ready && (
+          <div className="cc-filter-banner" role="status">
+            <span>
+              Registry filtered to <strong>{filteredUsers.length}</strong> member{filteredUsers.length === 1 ? '' : 's'}
+              {feeFilter !== 'all' && <> · {feeStatusInfo(feeFilter).label}</>}
+              {joinedFilter && <> · joined {joinedFilter.label}</>}
+            </span>
+            <button type="button" className="btn btn-outline btn-sm" onClick={jumpToRegistry}>
+              <span>View registry</span>
+              <ChevronDownIcon width={15} height={15} />
+            </button>
+          </div>
+        )}
+      </MacroSection>
 
-          <label className="filter">
-            <span className="filter-label">Membership Fee</span>
-            <select value={feeFilter} onChange={(e) => setFeeFilter(e.target.value)}>
-              <option value="all">All members</option>
-              {FEE_STATUSES.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </label>
+      {/* ---------- 03 Member registry ---------- */}
+      <div ref={registryRef} className="cc-anchor">
+        <MacroSection
+          step="03"
+          id="cc-registry"
+          title="Member Registry"
+          sw="Daftari la Washiriki"
+          lead="Search, filter, update fee status, open full member files and export."
+          aside={
+            <span className="registry-count">
+              Showing {filteredUsers.length} of {registry.length}
+            </span>
+          }
+        >
+          <div className="panel registry">
+            <div className="registry-filters-main">
+              <label className="filter filter-search">
+                <span className="sr-only">Search members</span>
+                <SearchIcon width={17} height={17} />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by full name or course (also email, phone, area)"
+                />
+              </label>
 
-          <label className="filter">
-            <span className="filter-label">Academic Level</span>
-            <select value={levelFilter} onChange={(e) => changeLevelFilter(e.target.value)}>
-              <option value="all">All levels</option>
-              {ACADEMIC_LEVELS.map((level) => (
-                <option key={level.value} value={level.value}>{level.short}</option>
-              ))}
-            </select>
-          </label>
+              <div className="fee-chips" role="group" aria-label="Filter by membership fee">
+                {[{ value: 'all', label: 'All' }, ...FEE_STATUSES].map((s) => (
+                  <button
+                    key={s.value}
+                    type="button"
+                    className={`chip ${feeFilter === s.value ? 'is-active' : ''}`}
+                    aria-pressed={feeFilter === s.value}
+                    onClick={() => setFeeFilter(s.value)}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
 
-          <label className="filter">
-            <span className="filter-label">Course</span>
-            <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)}>
-              <option value="all">
-                {levelFilter === 'all' ? 'All courses' : `All ${formatAcademicLevel(levelFilter)} courses`}
-              </option>
-              {courseGroups.map(({ level, courses }) => (
-                <optgroup key={level.value} label={level.label}>
-                  {courses.map((course) => (
-                    <option key={course.code} value={course.code}>{course.code} — {course.name}</option>
+              <button
+                type="button"
+                className={`btn btn-outline btn-sm advanced-toggle ${showAdvanced ? 'is-open' : ''}`}
+                aria-expanded={showAdvanced}
+                aria-controls="cc-advanced-filters"
+                onClick={() => setShowAdvanced((open) => !open)}
+              >
+                <span>More filters{advancedCount ? ` (${advancedCount})` : ''}</span>
+                <ChevronDownIcon width={15} height={15} />
+              </button>
+            </div>
+
+            <div id="cc-advanced-filters" className="registry-filters" hidden={!showAdvanced}>
+              <label className="filter">
+                <span className="filter-label">Academic Level</span>
+                <select value={levelFilter} onChange={(e) => changeLevelFilter(e.target.value)}>
+                  <option value="all">All levels</option>
+                  {ACADEMIC_LEVELS.map((level) => (
+                    <option key={level.value} value={level.value}>{level.short}</option>
                   ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
+                </select>
+              </label>
 
-          <label className="filter">
-            <span className="filter-label">Year of Study</span>
-            <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)}>
-              <option value="all">All years</option>
-              {YEAR_OPTIONS.map((year) => (
-                <option key={year.value} value={year.value}>{year.label}</option>
-              ))}
-            </select>
-          </label>
+              <label className="filter">
+                <span className="filter-label">Course</span>
+                <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)}>
+                  <option value="all">
+                    {levelFilter === 'all' ? 'All courses' : `All ${formatAcademicLevel(levelFilter)} courses`}
+                  </option>
+                  {courseGroups.map(({ level, courses }) => (
+                    <optgroup key={level.value} label={level.label}>
+                      {courses.map((course) => (
+                        <option key={course.code} value={course.code}>{course.code} — {course.name}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
 
-          <label className="filter">
-            <span className="filter-label">Residential Area</span>
-            <select value={areaFilter} onChange={(e) => setAreaFilter(e.target.value)}>
-              <option value="all">All areas</option>
-              {areaOptions.map((area) => (
-                <option key={area} value={area}>{area}</option>
-              ))}
-            </select>
-          </label>
-        </div>
+              <label className="filter">
+                <span className="filter-label">Year of Study</span>
+                <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)}>
+                  <option value="all">All years</option>
+                  {YEAR_OPTIONS.map((year) => (
+                    <option key={year.value} value={year.value}>{year.label}</option>
+                  ))}
+                </select>
+              </label>
 
-        <div className="registry-toolbar">
-          {filtersActive ? (
-            <button type="button" className="btn-link" onClick={clearFilters}>Clear filters</button>
-          ) : (
-            <span className="registry-toolbar-note">Newest registrations are listed first.</span>
-          )}
+              <label className="filter">
+                <span className="filter-label">Residential Area</span>
+                <select value={areaFilter} onChange={(e) => setAreaFilter(e.target.value)}>
+                  <option value="all">All areas</option>
+                  {areaOptions.map((area) => (
+                    <option key={area} value={area}>{area}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-          <div className="registry-exports">
-            <button
-              type="button"
-              className="btn btn-outline btn-sm"
-              onClick={() =>
-                exportPdf(
-                  filteredUsers,
-                  filtersActive ? `Filtered view (${filteredUsers.length} of ${registry.length})` : `All members (${registry.length})`
-                )
-              }
-              disabled={status !== 'ready' || filteredUsers.length === 0 || preparingPdf}
-            >
-              <FileIcon width={16} height={16} />
-              <span>{preparingPdf ? 'Preparing PDF…' : 'Export Registry to PDF'}</span>
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={exportCsv}
-              disabled={status !== 'ready' || filteredUsers.length === 0}
-            >
-              <DownloadIcon width={16} height={16} />
-              <span>Export Registry to CSV</span>
-            </button>
-          </div>
-        </div>
+            <div className="registry-toolbar">
+              <div className="active-chips">
+                {activeChips.map((chip) => (
+                  <button key={chip.key} type="button" className="active-chip" onClick={chip.clear} aria-label={`Remove filter ${chip.label}`}>
+                    <span>{chip.label}</span>
+                    <CloseIcon width={12} height={12} />
+                  </button>
+                ))}
+                {filtersActive ? (
+                  <button type="button" className="btn-link" onClick={clearFilters}>Clear all</button>
+                ) : (
+                  <span className="registry-toolbar-note">Newest registrations are listed first.</span>
+                )}
+              </div>
 
-        {message.text && <Alert type={message.type}>{message.text}</Alert>}
+              <div className="registry-exports">
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={() =>
+                    exportPdf(
+                      filteredUsers,
+                      filtersActive ? `Filtered view (${filteredUsers.length} of ${registry.length})` : `All members (${registry.length})`
+                    )
+                  }
+                  disabled={!ready || filteredUsers.length === 0 || preparingPdf}
+                >
+                  <FileIcon width={16} height={16} />
+                  <span>{preparingPdf ? 'Preparing PDF…' : 'Export PDF'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={exportCsv}
+                  disabled={!ready || filteredUsers.length === 0}
+                >
+                  <DownloadIcon width={16} height={16} />
+                  <span>Export CSV</span>
+                </button>
+              </div>
+            </div>
 
-        {status === 'loading' && (
-          <div className="panel-loading">
-            <span className="spinner" />
-            <span>Loading member registry...</span>
-          </div>
-        )}
+            {message.text && <Alert type={message.type}>{message.text}</Alert>}
 
-        {status === 'ready' && filteredUsers.length === 0 && (
-          <div className="empty-state">
-            <UsersIcon width={28} height={28} />
-            <p>{users.length === 0 ? 'No one has registered yet.' : 'No members match these filters.'}</p>
-          </div>
-        )}
+            {status === 'loading' && (
+              <div className="panel-loading">
+                <span className="spinner" />
+                <span>Loading member registry...</span>
+              </div>
+            )}
 
-        {status === 'ready' && filteredUsers.length > 0 && (
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th scope="col">Member</th>
-                  <th scope="col">Phone</th>
-                  <th scope="col">Access</th>
-                  <th scope="col">Academic</th>
-                  <th scope="col">Residence</th>
-                  <th scope="col">Ministry</th>
-                  <th scope="col">Membership Fee</th>
-                  <th scope="col"><span className="sr-only">Actions</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map((u) => {
-                  const isSelf = u.id === currentUser.uid;
-                  return (
-                    <tr key={u.id} className={u.feeStatus === 'fully_paid' ? '' : 'row-unpaid'}>
-                      <td data-label="Member">
-                        <div className="cell-member">
-                          <MemberAvatar name={u.fullName || u.email || ''} photoUrl={u.profilePictureUrl} size="sm" />
-                          <div>
-                            <strong>{u.fullName || 'Unnamed'}{isSelf && <em className="cell-you"> (you)</em>}</strong>
-                            <small>{u.email}</small>
-                            <small className="cell-joined">Joined {formatDate(u.createdAt, '—')}</small>
-                          </div>
-                        </div>
-                      </td>
-                      <td data-label="Phone">
-                        {u.phone ? <a href={`tel:${u.phone}`} className="cell-link">{u.phone}</a> : '—'}
-                      </td>
-                      <td data-label="Access">
-                        <span className={`badge ${u.role === 'leader' ? 'badge-gold' : ''}`}>
-                          {formatRole(u)}
-                        </span>
-                      </td>
-                      <td data-label="Academic">
-                        <span className="cell-stack">
-                          <strong>
-                            {u.courseCode || '—'} · {formatYear(u.academicDetails?.yearOfStudy)}
-                          </strong>
-                          <small>{formatAcademicLevel(u.academicLevel)}</small>
-                        </span>
-                      </td>
-                      <td data-label="Residence">
-                        <span className="cell-stack">
-                          <strong>{u.area || '—'}</strong>
-                          <small>{u.houseNumber}</small>
-                        </span>
-                      </td>
-                      <td data-label="Ministry">{u.ministryWing || 'None'}</td>
-                      <td data-label="Membership Fee">
-                        <FeeSegment
-                          size="sm"
-                          value={u.feeStatus}
-                          busy={feeBusy.has(u.id)}
-                          disabled={isSelf}
-                          label={`Membership fee status for ${u.fullName || u.email || 'member'}`}
-                          onChange={(next) => setFeeStatus(u, next)}
-                        />
-                      </td>
-                      <td data-label="Actions" className="cell-action">
-                        <div className="row-actions">
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            onClick={() => setDrawerId(u.id)}
-                            aria-label={`View full member file for ${u.fullName || u.email}`}
-                            title="View Full Member File"
-                          >
-                            <FileIcon width={17} height={17} />
-                            <span className="icon-btn-text">View File</span>
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-btn icon-btn-danger"
-                            onClick={() => setMemberToDelete(u)}
-                            disabled={!canDelete(u)}
-                            aria-label={`Delete ${u.fullName || u.email} from the registry`}
-                            title={canDelete(u) ? 'Delete member' : 'Leader accounts cannot be removed here'}
-                          >
-                            <TrashIcon width={17} height={17} />
-                            <span className="icon-btn-text">Delete</span>
-                          </button>
-                        </div>
-                      </td>
+            {ready && filteredUsers.length === 0 && (
+              <div className="empty-state">
+                <UsersIcon width={28} height={28} />
+                <p>{registry.length === 0 ? 'No one has registered yet.' : 'No members match these filters.'}</p>
+              </div>
+            )}
+
+            {ready && filteredUsers.length > 0 && (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Member</th>
+                      <th scope="col">Phone</th>
+                      <th scope="col">Access</th>
+                      <th scope="col">Academic</th>
+                      <th scope="col">Residence</th>
+                      <th scope="col">Ministry</th>
+                      <th scope="col">Membership Fee</th>
+                      <th scope="col"><span className="sr-only">Actions</span></th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {filteredUsers.map((u) => {
+                      const isSelf = u.id === currentUser.uid;
+                      return (
+                        <tr key={u.id} className={u.feeStatus === 'fully_paid' ? '' : 'row-unpaid'}>
+                          <td data-label="Member">
+                            <div className="cell-member">
+                              <MemberAvatar name={u.fullName || u.email || ''} photoUrl={u.profilePictureUrl} size="sm" />
+                              <div>
+                                <strong>{u.fullName || 'Unnamed'}{isSelf && <em className="cell-you"> (you)</em>}</strong>
+                                <small>{u.email}</small>
+                                <small className="cell-joined">Joined {formatDate(u.createdAt, '—')}</small>
+                              </div>
+                            </div>
+                          </td>
+                          <td data-label="Phone">
+                            {u.phone ? <a href={`tel:${u.phone}`} className="cell-link">{u.phone}</a> : '—'}
+                          </td>
+                          <td data-label="Access">
+                            <span className={`badge ${u.role === 'leader' ? 'badge-gold' : ''}`}>
+                              {formatRole(u)}
+                            </span>
+                          </td>
+                          <td data-label="Academic">
+                            <span className="cell-stack">
+                              <strong>
+                                {u.courseCode || '—'} · {formatYear(u.academicDetails?.yearOfStudy)}
+                              </strong>
+                              <small>{formatAcademicLevel(u.academicLevel)}</small>
+                            </span>
+                          </td>
+                          <td data-label="Residence">
+                            <span className="cell-stack">
+                              <strong>{u.area || '—'}</strong>
+                              <small>{u.houseNumber}</small>
+                            </span>
+                          </td>
+                          <td data-label="Ministry">{ministryLabel(u.ministryWing)}</td>
+                          <td data-label="Membership Fee">
+                            <FeeSegment
+                              size="sm"
+                              value={u.feeStatus}
+                              busy={feeBusy.has(u.id)}
+                              disabled={isSelf}
+                              label={`Membership fee status for ${u.fullName || u.email || 'member'}`}
+                              onChange={(next) => setFeeStatus(u, next)}
+                            />
+                          </td>
+                          <td data-label="Actions" className="cell-action">
+                            <div className="row-actions">
+                              <button
+                                type="button"
+                                className="icon-btn"
+                                onClick={() => setDrawerId(u.id)}
+                                aria-label={`View full member file for ${u.fullName || u.email}`}
+                                title="View Full Member File"
+                              >
+                                <FileIcon width={17} height={17} />
+                                <span className="icon-btn-text">View File</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="icon-btn icon-btn-danger"
+                                onClick={() => setMemberToDelete(u)}
+                                disabled={!canDelete(u)}
+                                aria-label={`Delete ${u.fullName || u.email} from the registry`}
+                                title={canDelete(u) ? 'Delete member' : 'Leader accounts cannot be removed here'}
+                              >
+                                <TrashIcon width={17} height={17} />
+                                <span className="icon-btn-text">Delete</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
-      </section>
+        </MacroSection>
+      </div>
 
-      <PublishedAnnouncements />
+      {/* ---------- 04 Announcements ---------- */}
+      <MacroSection
+        step="04"
+        id="cc-announcements"
+        title="Announcements"
+        sw="Matangazo"
+        lead="Search, edit or delete published posts."
+      >
+        <PublishedAnnouncements />
+      </MacroSection>
 
       {printPortal}
 
@@ -590,6 +765,7 @@ export default function CommandCenter() {
           )
         }
         confirmLabel={deleting ? 'Removing...' : 'Yes, remove member'}
+        cancelLabel="No, keep this member"
         busy={deleting}
         onConfirm={confirmDelete}
         onCancel={cancelDelete}

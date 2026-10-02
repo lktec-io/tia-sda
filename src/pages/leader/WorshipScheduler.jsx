@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import useWorshipSchedules from '../../hooks/useWorshipSchedules';
 import Alert from '../../components/Alert';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import { BookIcon, CalendarIcon, CheckIcon, ClockIcon, FileIcon, TrashIcon } from '../../components/Icons';
+import { BookIcon, CalendarIcon, CheckIcon, ClockIcon, FileIcon, SearchIcon, TrashIcon } from '../../components/Icons';
 import {
   DUTY_MAX,
   ROSTER_SECTIONS,
@@ -50,10 +50,20 @@ export default function WorshipScheduler() {
   const [toDelete, setToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [view, setView] = useState('upcoming'); // upcoming | history
+  const [search, setSearch] = useState('');
 
   const { current, upcoming, past } = splitRosters(rosters, now ?? 0);
   const upcomingList = current ? [current, ...upcoming] : upcoming;
-  const listed = view === 'upcoming' ? upcomingList : past;
+  // Live search across the week's date and every assigned name / reading.
+  const term = search.trim().toLowerCase();
+  const matchesSearch = (roster) =>
+    !term ||
+    [roster.sabatoDate, formatRosterDate(roster.sabatoDate, { long: true }), ...ROSTER_SECTIONS.flatMap((section) =>
+      section.fields.map((f) => roster[section.key]?.[f.key])
+    )]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(term));
+  const listed = (view === 'upcoming' ? upcomingList : past).filter(matchesSearch);
   const nextSabbath = now ? upcomingSabbathId(now) : '';
   const isEdit = Boolean(editingId);
   const dateIsSaturday = isSaturday(form.sabatoDate);
@@ -297,6 +307,19 @@ export default function WorshipScheduler() {
             </button>
           </div>
 
+          <div className="list-toolbar roster-search">
+            <label className="toolbar-search">
+              <SearchIcon width={17} height={17} />
+              <span className="sr-only">Search rosters</span>
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name, scripture or date..."
+              />
+            </label>
+          </div>
+
           {status === 'loading' && (
             <div className="panel-loading">
               <span className="spinner" />
@@ -314,7 +337,13 @@ export default function WorshipScheduler() {
           {status === 'ready' && listed.length === 0 && (
             <div className="empty-state">
               <CalendarIcon width={26} height={26} />
-              <p>{view === 'upcoming' ? 'No upcoming weeks scheduled yet.' : 'No past rosters yet.'}</p>
+              <p>
+                {term
+                  ? `No rosters match "${search.trim()}".`
+                  : view === 'upcoming'
+                    ? 'No upcoming weeks scheduled yet.'
+                    : 'No past rosters yet.'}
+              </p>
             </div>
           )}
 
@@ -381,6 +410,7 @@ export default function WorshipScheduler() {
           )
         }
         confirmLabel={deleting ? 'Deleting...' : 'Delete Week Roster'}
+        cancelLabel="No, keep this roster"
         onConfirm={confirmDelete}
         onCancel={() => !deleting && setToDelete(null)}
       />

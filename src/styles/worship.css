@@ -542,6 +542,11 @@
   justify-content: center;
 }
 
+/* Live search above the week list */
+.roster-search {
+  margin: 12px 0 14px;
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1100px) {
   .scheduler-grid {

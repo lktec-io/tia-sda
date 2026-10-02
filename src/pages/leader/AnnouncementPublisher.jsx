@@ -4,17 +4,23 @@ import { addDoc, collection, deleteField, doc, serverTimestamp, Timestamp, updat
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import useRoleAnnouncements from '../../hooks/useRoleAnnouncements';
+import useAnnouncementDeletion from '../../hooks/useAnnouncementDeletion';
 import AnnouncementPost from '../../components/AnnouncementPost';
 import Alert from '../../components/Alert';
 import PosterUpload from '../../components/PosterUpload';
 import PublicAnnouncementCard from '../../components/PublicAnnouncementCard';
-import { CheckIcon, ClockIcon, FileIcon, MegaphoneIcon, SendIcon } from '../../components/Icons';
-import { ANNOUNCEMENT_CATEGORIES, VISIBILITY_OPTIONS } from '../../data/constants';
-import { formatDateTime, toDate } from '../../utils/format';
+import SuccessOverlay from '../../components/SuccessOverlay';
+import { CalendarIcon, CheckIcon, ClockIcon, FileIcon, MegaphoneIcon, SendIcon, TrashIcon, UserIcon } from '../../components/Icons';
+import { ANNOUNCEMENT_CATEGORIES, DEFAULT_ISSUER, ISSUING_AUTHORITIES, VISIBILITY_OPTIONS } from '../../data/constants';
+import { formatDateTime, formatLongDate, toDate } from '../../utils/format';
 import '../../styles/leader.css';
 
 const TITLE_MAX = 120;
 const CONTENT_MAX = 3000;
+// After a successful save the success overlay shows for this long, then the leader
+// is taken to the announcements list.
+const SUCCESS_REDIRECT_MS = 2500;
+const SUCCESS_REDIRECT_TO = '/dashboard/announcements';
 
 const EMPTY_FORM = {
   title: '',
@@ -22,6 +28,8 @@ const EMPTY_FORM = {
   content: '',
   visibleTo: ['member', 'associate'],
   imageUrl: '',
+  issuedBy: DEFAULT_ISSUER, // "Source Authority" — office that issued the post
+  eventDate: '', // "YYYY-MM-DD", '' = no event date
   scheduledAt: '', // datetime-local string, '' = publish immediately
   expiresAt: '' // datetime-local string, '' = never expires
 };
@@ -42,6 +50,17 @@ const fromLocalInput = (value) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+// Event day: Timestamp/Date <-> "YYYY-MM-DD" (<input type="date">). Stored at local
+// noon so time-zone shifts can never move it to a neighbouring day.
+const toDateInput = (value) => toLocalInput(value).slice(0, 10);
+
+const fromDateInput = (value) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12);
+  return date.getDate() === Number(match[3]) ? date : null;
+};
+
 // Pre-populates the form from an existing announcement (Edit Mode).
 const formFrom = (announcement) =>
   announcement
@@ -51,6 +70,8 @@ const formFrom = (announcement) =>
         content: announcement.content || '',
         visibleTo: Array.isArray(announcement.visibleTo) ? announcement.visibleTo : [],
         imageUrl: announcement.imageUrl || '',
+        issuedBy: ISSUING_AUTHORITIES.includes(announcement.issuedBy) ? announcement.issuedBy : DEFAULT_ISSUER,
+        eventDate: toDateInput(announcement.eventDate),
         scheduledAt: toLocalInput(announcement.scheduledAt),
         expiresAt: toLocalInput(announcement.expiresAt)
       }
@@ -126,6 +147,9 @@ function PublisherWorkspace({ editing, feed }) {
   const [posterBusy, setPosterBusy] = useState(false);
   const [posterPreview, setPosterPreview] = useState(''); // local blob while uploading
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [success, setSuccess] = useState(null); // { title, message } → full-screen overlay
+  // Delete from the "Recently Published" list (not offered for the post being edited).
+  const { requestDelete, dialog: deleteDialog, notice: deleteNotice } = useAnnouncementDeletion();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -184,6 +208,15 @@ function PublisherWorkspace({ editing, feed }) {
       setMessage({ type: 'error', text: 'The expiry date must be in the future.' });
       return;
     }
+    const eventDay = fromDateInput(form.eventDate);
+    if (form.eventDate && !eventDay) {
+      setMessage({ type: 'error', text: 'The event date (Tarehe ya Tukio) is not a valid date.' });
+      return;
+    }
+    if (!ISSUING_AUTHORITIES.includes(form.issuedBy)) {
+      setMessage({ type: 'error', text: 'Choose which office is issuing this announcement.' });
+      return;
+    }
 
     setSaving(true);
     setMessage({ type: 'info', text: isEdit ? 'Saving changes...' : 'Publishing announcement...' });
@@ -195,10 +228,12 @@ function PublisherWorkspace({ editing, feed }) {
       category: form.category,
       content,
       visibleTo,
-      imageUrl: form.imageUrl
+      imageUrl: form.imageUrl,
+      issuedBy: form.issuedBy
     };
     const scheduledTs = scheduledDate ? Timestamp.fromDate(scheduledDate) : null;
     const expiresTs = expiresDate ? Timestamp.fromDate(expiresDate) : null;
+    const eventTs = eventDay ? Timestamp.fromDate(eventDay) : null;
 
     const isFuture = scheduledDate && scheduledDate.getTime() > nowMs;
     const audience = audienceLabels(visibleTo);
@@ -214,21 +249,25 @@ function PublisherWorkspace({ editing, feed }) {
           // Cleared fields are removed so the post publishes immediately / never expires.
           scheduledAt: scheduledTs ?? deleteField(),
           expiresAt: expiresTs ?? deleteField(),
+          eventDate: eventTs ?? deleteField(),
           updatedBy: currentUser.uid,
           updatedAt: serverTimestamp()
         });
-        setMessage({ type: 'success', text: `"${title}" has been updated and ${liveText}.${expiryText}` });
+        setMessage({ type: '', text: '' });
+        setSuccess({ title: 'Announcement Updated', message: `"${title}" has been updated and ${liveText}.${expiryText}` });
       } else {
         await addDoc(collection(db, 'announcements'), {
           ...fields,
           ...(scheduledTs && { scheduledAt: scheduledTs }),
           ...(expiresTs && { expiresAt: expiresTs }),
+          ...(eventTs && { eventDate: eventTs }),
           authorId: currentUser.uid,
           authorName: userProfile?.fullName || 'TUCASA Leadership',
           publishedAt: serverTimestamp()
         });
         setForm(EMPTY_FORM);
-        setMessage({ type: 'success', text: `"${title}" ${liveText}.${expiryText}` });
+        setMessage({ type: '', text: '' });
+        setSuccess({ title: 'Announcement Published', message: `"${title}" ${liveText}.${expiryText}` });
       }
     } catch (error) {
       console.error(isEdit ? 'Announcement update error:' : 'Publish error:', error);
@@ -244,6 +283,8 @@ function PublisherWorkspace({ editing, feed }) {
     content: form.content.trim() || 'Your announcement content will appear here exactly as members will read it.',
     visibleTo: form.visibleTo,
     imageUrl: form.imageUrl,
+    issuedBy: form.issuedBy,
+    eventDate: fromDateInput(form.eventDate),
     authorName: editing?.authorName || userProfile?.fullName || 'TUCASA Leadership',
     publishedAt: editing?.publishedAt || new Date(),
     scheduledAt: fromLocalInput(form.scheduledAt),
@@ -282,6 +323,7 @@ function PublisherWorkspace({ editing, feed }) {
           </div>
 
           {message.text && <Alert type={message.type}>{message.text}</Alert>}
+          {deleteNotice.text && <Alert type={deleteNotice.type}>{deleteNotice.text}</Alert>}
 
           <form onSubmit={handleSubmit} className="publisher-form">
             <PosterUpload
@@ -306,13 +348,50 @@ function PublisherWorkspace({ editing, feed }) {
               />
             </div>
 
+            <div className="publisher-row">
+              <div className="field">
+                <label htmlFor="post-category">Category</label>
+                <select id="post-category" name="category" value={form.category} onChange={handleChange}>
+                  {ANNOUNCEMENT_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="field">
+                <label htmlFor="post-issuer">
+                  <span>
+                    <UserIcon width={14} height={14} /> Source Authority{' '}
+                    <span className="label-sw" lang="sw">/ Imetolewa na</span>
+                  </span>
+                </label>
+                <select id="post-issuer" name="issuedBy" value={form.issuedBy} onChange={handleChange}>
+                  {ISSUING_AUTHORITIES.map((office) => (
+                    <option key={office} value={office}>{office}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div className="field">
-              <label htmlFor="post-category">Category</label>
-              <select id="post-category" name="category" value={form.category} onChange={handleChange}>
-                {ANNOUNCEMENT_CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
+              <label htmlFor="post-event-date">
+                <span>
+                  <CalendarIcon width={14} height={14} /> Event Date{' '}
+                  <span className="label-sw" lang="sw">/ Tarehe ya Tukio</span>
+                </span>
+                <span className="char-count">Optional</span>
+              </label>
+              <div className="publisher-inline">
+                <input id="post-event-date" type="date" name="eventDate" value={form.eventDate} onChange={handleChange} />
+                {form.eventDate && (
+                  <button type="button" className="btn-link" onClick={() => setForm((p) => ({ ...p, eventDate: '' }))}>
+                    Clear
+                  </button>
+                )}
+              </div>
+              {form.eventDate && fromDateInput(form.eventDate) && (
+                <small className="field-hint">Shown on the post as “Tarehe ya Tukio: {formatLongDate(fromDateInput(form.eventDate))}”.</small>
+              )}
             </div>
 
             <div className="field">
@@ -489,14 +568,27 @@ function PublisherWorkspace({ editing, feed }) {
                     showSchedule
                     now={feed.now}
                     actions={
-                      editing?.id === item.id ? (
-                        <span className="badge badge-gold">Editing</span>
-                      ) : (
-                        <Link to={`/leader/publish/${item.id}`} className="btn btn-outline btn-sm">
-                          <FileIcon width={15} height={15} />
-                          Edit Poster/Post
-                        </Link>
-                      )
+                      <>
+                        {editing?.id === item.id ? (
+                          <span className="badge badge-gold">Editing</span>
+                        ) : (
+                          <Link to={`/leader/publish/${item.id}`} className="btn btn-outline btn-sm">
+                            <FileIcon width={15} height={15} />
+                            <span>Edit</span>
+                          </Link>
+                        )}
+                        {editing?.id !== item.id && (
+                        <button
+                          type="button"
+                          className="icon-btn icon-btn-danger"
+                          onClick={() => requestDelete(item)}
+                          aria-label={`Delete announcement: ${item.title || 'untitled'}`}
+                          title="Delete announcement"
+                        >
+                          <TrashIcon width={16} height={16} />
+                        </button>
+                        )}
+                      </>
                     }
                   />
                 ))}
@@ -505,6 +597,19 @@ function PublisherWorkspace({ editing, feed }) {
           </section>
         </div>
       </div>
+
+      {deleteDialog}
+
+      {success && (
+        <SuccessOverlay
+          title={success.title}
+          sw="Taarifa Imetumwa kwa Mafanikio"
+          message={success.message}
+          duration={SUCCESS_REDIRECT_MS}
+          doneLabel="Taking you to the announcements list…"
+          onDone={() => navigate(SUCCESS_REDIRECT_TO)}
+        />
+      )}
     </div>
   );
 }

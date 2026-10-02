@@ -152,6 +152,25 @@ export function GridIcon(props) {
   );
 }
 
+export function ListIcon(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M9 6h12M9 12h12M9 18h12" />
+      <circle cx="4.5" cy="6" r="1.2" />
+      <circle cx="4.5" cy="12" r="1.2" />
+      <circle cx="4.5" cy="18" r="1.2" />
+    </svg>
+  );
+}
+
+export function ExpandIcon(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+    </svg>
+  );
+}
+
 export function MegaphoneIcon(props) {
   return (
     <svg {...base} {...props}>
