@@ -703,6 +703,7 @@
 
 .welcome-badges {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -1158,20 +1159,21 @@
      so opening/closing never causes a display or layout jump. `visibility` flips
      after the slide-out finishes, keeping hidden links out of the tab order. */
   .sidebar {
-    --drawer-ease: cubic-bezier(0.4, 0, 0.2, 1);
     position: fixed;
     top: 0;
     left: 0;
     bottom: 0;
-    width: min(var(--sidebar-width), 86vw);
+    width: 280px;
+    max-width: 85vw;
+    overflow-x: hidden;
     transform: translateX(-100%);
     visibility: hidden;
     box-shadow: none;
     will-change: transform;
     transition:
-      transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-      box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-      visibility 0s linear 0.35s;
+      transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+      box-shadow 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+      visibility 0s linear 0.4s;
   }
 
   .drawer-open .sidebar {
@@ -1179,9 +1181,30 @@
     visibility: visible;
     box-shadow: 24px 0 48px rgba(0, 0, 0, 0.3);
     transition:
-      transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-      box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+      transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+      box-shadow 0.4s cubic-bezier(0.25, 1, 0.5, 1),
       visibility 0s linear 0s;
+  }
+
+  /* Labels scale down fluidly on compact phones and truncate instead of wrapping. */
+  .side-link {
+    font-size: clamp(13px, 3.6vw, 14px);
+    gap: 10px;
+  }
+
+  .side-link span {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sidebar-brand strong {
+    font-size: clamp(14px, 4vw, 16px);
+  }
+
+  .sidebar-brand small {
+    font-size: clamp(11px, 3.2vw, 12px);
   }
 
   /* Links cascade in slightly after the panel for a fluid feel. */
@@ -1189,8 +1212,8 @@
     opacity: 0;
     transform: translateX(-12px);
     transition:
-      opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-      transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      opacity 0.3s cubic-bezier(0.25, 1, 0.5, 1),
+      transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
   }
 
   .drawer-open .sidebar-nav li {
@@ -1215,7 +1238,7 @@
     pointer-events: none;
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
-    transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: opacity 0.4s cubic-bezier(0.25, 1, 0.5, 1);
   }
 
   .drawer-open .sidebar-scrim {
@@ -1225,6 +1248,30 @@
 
   .quick-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- < 768px: every dashboard row collapses to one fluid column ---------- */
+@media (max-width: 767px) {
+  .overview-grid,
+  .profile-grid,
+  .quick-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .welcome-banner,
+  .view-head,
+  .panel-head {
+    flex-wrap: wrap;
+  }
+
+  .topbar-title {
+    font-size: 16px;
+  }
+
+  .fee-tracker-steps {
+    flex-wrap: wrap;
+    gap: 6px 12px;
   }
 }
 

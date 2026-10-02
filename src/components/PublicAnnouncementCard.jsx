@@ -54,7 +54,7 @@ export default function PublicAnnouncementCard({ announcement, onOpen }) {
 
   return (
     <article
-      className={['announcement-card', announcement.isNew ? 'is-new' : '', clickable ? 'is-clickable' : '']
+      className={['announcement-card', 'public-announcement-card', announcement.isNew ? 'is-new' : '', clickable ? 'is-clickable' : '']
         .filter(Boolean)
         .join(' ')}
     >

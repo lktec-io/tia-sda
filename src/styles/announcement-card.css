@@ -4,14 +4,18 @@
    (.announcements-showcase on the homepage, .announcement-stage elsewhere).
    ========================================================================== */
 
-.announcement-card {
+.announcement-card,
+.public-announcement-card {
   position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
+  min-width: 0;
   overflow: hidden;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.03);
+  /* Deeper navy glass for stronger text contrast; blur and the gold-amber
+     hover/focus stroke are unchanged. */
+  background: rgba(15, 43, 70, 0.45);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -223,7 +227,7 @@
 }
 
 .announcement-card p {
-  color: #a8b4c4;
+  color: #c3cdd9;
   font-size: 14.5px;
   line-height: 1.65;
   white-space: pre-line;

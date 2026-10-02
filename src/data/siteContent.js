@@ -14,6 +14,16 @@ export const album = {
 export const heroSlides = ['/assets/tucasa1.jpg', '/assets/tucasa2.jpg', '/assets/tucasa3.jpg'];
 export const HERO_SLIDE_INTERVAL_MS = 3500;
 
+// Worship words that change with every hero slide (English + Swahili, with reference).
+export const worshipWords = [
+  { en: 'The Lord Is My Shepherd', sw: 'Bwana Ndiye Mchungaji Wangu', ref: 'Zaburi 23:1' },
+  { en: 'Praise the Lord', sw: 'Msifuni Bwana', ref: 'Zaburi 150:1' },
+  { en: 'Give Thanks to the Lord', sw: 'Mshukuruni Bwana', ref: 'Zaburi 136:1' },
+  { en: 'Remember the Sabbath Day', sw: 'Ikumbuke Siku ya Sabato', ref: 'Kutoka 20:8' },
+  { en: 'God Is Love', sw: 'Mungu ni Upendo', ref: '1 Yohana 4:8' },
+  { en: 'Jesus Is Coming Again', sw: 'Yesu Anakuja Tena', ref: 'Yohana 14:3' }
+];
+
 // Confirm these times with church leadership before going live.
 // `sw` = Swahili sub-label shown in italics under the English title.
 export const sabbathSchedule = [

@@ -537,13 +537,33 @@
   }
 }
 
-@media (max-width: 560px) {
+/* < 768px: metric rows wrap into 2 then 1 fluid columns; chips may wrap. */
+@media (max-width: 767px) {
+  .treasury-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .treasury-rate-chip {
+    white-space: normal;
+  }
+
+  .metric-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .registry-toolbar,
+  .published-item {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
   .treasury {
     padding: 18px;
   }
 
   .treasury-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

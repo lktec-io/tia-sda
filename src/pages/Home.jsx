@@ -19,6 +19,7 @@ import {
 } from '../components/Icons';
 import {
   HERO_SLIDE_INTERVAL_MS,
+  worshipWords,
   album,
   choirChannels,
   heroSlides,
@@ -122,6 +123,35 @@ function HeroSlideshow({ slides, interval, slide, animated }) {
             className={`hero-slide ${state}`.trim()}
             style={{ backgroundImage: `url('${src}')` }}
           />
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Cinematic worship words, bound to the hero slideshow clock: every slide change
+ * (`tick`) brings in the next phrase. All phrases are stacked in one grid cell; the
+ * active one transitions up into place (translateY 20px → 0, opacity 0 → 1, 0.7 s)
+ * while the previous one lifts away. There are more phrases than photos, so they
+ * advance per transition rather than per image.
+ */
+function WorshipWords({ words, tick }) {
+  const active = tick % words.length;
+  const previous = tick > 0 ? (tick - 1) % words.length : null;
+
+  return (
+    <div className="worship-words">
+      {words.map((word, index) => {
+        const state = index === active ? 'is-active' : index === previous ? 'is-leaving' : '';
+        return (
+          <p key={word.en} className={`worship-word ${state}`.trim()} aria-hidden={index !== active}>
+            <span className="worship-word-en">{word.en}</span>
+            <span className="worship-word-sw" lang="sw">
+              <em>{word.sw}</em>
+              {word.ref && <span className="worship-word-ref"> · {word.ref}</span>}
+            </span>
+          </p>
         );
       })}
     </div>
@@ -239,6 +269,10 @@ export default function Home() {
               Service guidelines <ArrowRightIcon width={16} height={16} />
             </a>
           </aside>
+        </div>
+
+        <div className="container worship-band">
+          <WorshipWords words={worshipWords} tick={slide.tick} />
         </div>
       </section>
 

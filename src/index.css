@@ -90,7 +90,32 @@ body {
   overflow-x: hidden;
 }
 
-img, svg {
+/* ---------- Anti-overflow safety net ----------
+   Page wrappers can never be wider than the viewport. `max-width: 100%` (not 100vw,
+   which includes the desktop scrollbar and itself causes overflow) and
+   `overflow-x: clip` (not hidden, which would turn the wrapper into a scroll
+   container and break the sticky top bar / sidebar). `hidden` is the fallback for
+   browsers without `clip`. html/body are deliberately excluded: body's own
+   `overflow-x: hidden` (above) already propagates to the viewport. */
+#root,
+.home,
+.portal,
+.auth-page {
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+/* Grid/flex children may shrink below their content width instead of pushing out. */
+.portal-body,
+.portal-main,
+.view,
+.panel {
+  min-width: 0;
+}
+
+img, svg, video {
   display: block;
   max-width: 100%;
 }
