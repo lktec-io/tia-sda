@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { isLeaderProfile } from '../data/constants';
+import { getFeeStatus, isLeaderProfile } from '../data/constants';
 
 const AuthContext = createContext(null);
 
@@ -94,7 +94,9 @@ export function AuthProvider({ children }) {
       isLeader: isLeaderProfile(userProfile),
       // Announcement audience: leaders read every post, everyone else their own role's posts.
       feedRole: userProfile?.role ?? null,
-      membershipFeePaid: userProfile?.membershipFeePaid === true,
+      // 'unpaid' | 'semester1_paid' | 'fully_paid' (older profiles derive it from membershipFeePaid)
+      feeStatus: getFeeStatus(userProfile),
+      membershipFeePaid: getFeeStatus(userProfile) === 'fully_paid',
       profileError,
       loading,
       logout

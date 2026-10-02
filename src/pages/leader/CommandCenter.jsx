@@ -6,6 +6,7 @@ import Alert from '../../components/Alert';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import MemberAvatar from '../../components/MemberAvatar';
 import MemberDrawer from '../../components/MemberDrawer';
+import FeeSegment from '../../components/FeeSegment';
 import PublishedAnnouncements from './PublishedAnnouncements';
 import {
   DownloadIcon,
@@ -20,11 +21,17 @@ import {
   ACADEMIC_LEVELS,
   RESIDENTIAL_AREAS,
   YEAR_OPTIONS,
+  FEE_ANNUAL_TZS,
+  FEE_PER_SEMESTER_TZS,
+  FEE_STATUSES,
   canonicalArea,
   coursesForLevel,
+  feeStatusInfo,
   formatAcademicLevel,
   formatRole,
+  formatTZS,
   formatYear,
+  getFeeStatus,
   getAcademicLevel,
   getCourseCode,
   getCourseName,
@@ -60,7 +67,8 @@ const CSV_COLUMNS = [
   { header: 'Email', value: (u) => u.email },
   { header: 'Phone', value: (u) => u.phone },
   { header: 'Access Level', value: (u) => formatRole(u) },
-  { header: 'Membership Fee', value: (u) => (u.membershipFeePaid ? 'Paid' : 'Unpaid') },
+  { header: 'Membership Fee Status', value: (u) => feeStatusInfo(u.feeStatus).label },
+  { header: 'Fee Paid (TZS)', value: (u) => feeStatusInfo(u.feeStatus).amount },
   { header: 'Academic Level', value: (u) => (u.academicLevel ? formatAcademicLevel(u.academicLevel, { long: true }) : '') },
   { header: 'Course Code', value: (u) => u.courseCode },
   { header: 'Course Name', value: (u) => u.courseName },
@@ -86,23 +94,64 @@ function MetricCard({ icon, label, value, hint, tone }) {
   );
 }
 
-function FeeToggle({ paid, busy, disabled, onToggle, name }) {
+/**
+ * "Church Treasury Insights / Hali ya Hazina ya Kanisa" — live ledger figures:
+ * revenue = 2,500 TZS × semester-1 payers + 5,000 TZS × fully paid members.
+ */
+function TreasuryInsights({ ledger, ready }) {
+  const collectionRate = ledger.potential > 0 ? Math.round((ledger.revenue / ledger.potential) * 100) : 0;
+  const show = (text) => (ready ? text : '—');
+
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={paid}
-      aria-label={`Membership fee for ${name}: ${paid ? 'paid' : 'unpaid'}`}
-      className={`fee-toggle ${paid ? 'is-paid' : ''}`}
-      onClick={onToggle}
-      disabled={busy || disabled}
-      title={disabled ? 'Leaders cannot change their own fee status' : undefined}
-    >
-      <span className="fee-track" aria-hidden="true">
-        <span className="fee-thumb">{busy && <span className="fee-spinner" />}</span>
-      </span>
-      <span className="fee-label">{paid ? 'Paid' : 'Unpaid'}</span>
-    </button>
+    <section className="treasury" aria-labelledby="treasury-title">
+      <div className="treasury-head">
+        <div>
+          <h3 id="treasury-title">Church Treasury Insights</h3>
+          <span lang="sw">Hali ya Hazina ya Kanisa</span>
+        </div>
+        <span className="treasury-rate-chip">
+          {FEE_PER_SEMESTER_TZS.toLocaleString('en-US')} TZS / semester · {FEE_ANNUAL_TZS.toLocaleString('en-US')} TZS / year
+        </span>
+      </div>
+
+      <div className="treasury-grid">
+        <article className="treasury-card treasury-card-revenue">
+          <span className="treasury-label">Total Collected Revenue</span>
+          <strong className="treasury-value">{show(formatTZS(ledger.revenue))}</strong>
+          <div
+            className="treasury-progress"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={ready ? collectionRate : 0}
+            aria-label="Share of potential annual fees collected"
+          >
+            <span style={{ width: `${ready ? collectionRate : 0}%` }} />
+          </div>
+          <span className="treasury-hint">
+            {show(`${collectionRate}% of ${formatTZS(ledger.potential)} potential (${ledger.total} members)`)}
+          </span>
+        </article>
+
+        <article className="treasury-card">
+          <span className="treasury-label">Fully Paid</span>
+          <strong className="treasury-count treasury-count-emerald">{show(ledger.fullyPaid)}</strong>
+          <span className="treasury-hint">{show(formatTZS(ledger.fullyPaid * FEE_ANNUAL_TZS))}</span>
+        </article>
+
+        <article className="treasury-card">
+          <span className="treasury-label">Semester 1 Paid</span>
+          <strong className="treasury-count treasury-count-sapphire">{show(ledger.semesterPaid)}</strong>
+          <span className="treasury-hint">{show(formatTZS(ledger.semesterPaid * FEE_PER_SEMESTER_TZS))}</span>
+        </article>
+
+        <article className="treasury-card">
+          <span className="treasury-label">Unpaid</span>
+          <strong className="treasury-count treasury-count-amber">{show(ledger.unpaid)}</strong>
+          <span className="treasury-hint">{show(`${formatTZS(ledger.outstanding)} outstanding`)}</span>
+        </article>
+      </div>
+    </section>
   );
 }
 
@@ -181,10 +230,21 @@ export default function CommandCenter() {
         courseCode: getCourseCode(u.academicDetails),
         courseName: getCourseName(u.academicDetails),
         area: canonicalArea(u.location?.residentialArea || ''),
-        houseNumber: getHouseNumber(u.location)
+        houseNumber: getHouseNumber(u.location),
+        feeStatus: getFeeStatus(u)
       })),
     [users]
   );
+
+  // Live treasury ledger from the whole registry.
+  const ledger = useMemo(() => {
+    const fullyPaid = registry.filter((u) => u.feeStatus === 'fully_paid').length;
+    const semesterPaid = registry.filter((u) => u.feeStatus === 'semester1_paid').length;
+    const unpaid = registry.length - fullyPaid - semesterPaid;
+    const revenue = semesterPaid * FEE_PER_SEMESTER_TZS + fullyPaid * FEE_ANNUAL_TZS;
+    const potential = registry.length * FEE_ANNUAL_TZS;
+    return { total: registry.length, fullyPaid, semesterPaid, unpaid, revenue, potential, outstanding: potential - revenue };
+  }, [registry]);
 
   // Course filter follows the selected level; "All levels" shows every course grouped by level.
   const courseGroups = useMemo(
@@ -207,8 +267,8 @@ export default function CommandCenter() {
   const metrics = useMemo(
     () => ({
       total: registry.length,
-      feesPaid: registry.filter((u) => u.membershipFeePaid === true).length,
-      feesOutstanding: registry.filter((u) => u.membershipFeePaid !== true).length,
+      feesPaid: registry.filter((u) => u.feeStatus === 'fully_paid').length,
+      feesOutstanding: registry.filter((u) => u.feeStatus !== 'fully_paid').length,
       choir: registry.filter((u) => u.ministryWing === 'Choir').length
     }),
     [registry]
@@ -223,7 +283,7 @@ export default function CommandCenter() {
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLowerCase();
     return registry
-      .filter((u) => feeFilter === 'all' || (feeFilter === 'paid') === (u.membershipFeePaid === true))
+      .filter((u) => feeFilter === 'all' || u.feeStatus === feeFilter)
       .filter((u) => levelFilter === 'all' || u.academicLevel === levelFilter)
       .filter((u) => courseFilter === 'all' || u.courseCode === courseFilter)
       .filter((u) => yearFilter === 'all' || u.academicDetails?.yearOfStudy === yearFilter)
@@ -266,23 +326,26 @@ export default function CommandCenter() {
   const closeDrawer = useCallback(() => setDrawerId(null), []);
   const cancelDelete = useCallback(() => setMemberToDelete(null), []);
 
-  // ---------- Membership fee ----------
-  const toggleFee = async (member) => {
-    if (feeBusy.has(member.id)) return;
-    const nextPaid = member.membershipFeePaid !== true;
+  // ---------- Membership fee (semester ledger) ----------
+  // The registry listener re-renders the row, drawer and treasury the moment the write
+  // lands (Firestore applies it locally first), so the UI updates instantly.
+  const setFeeStatus = async (member, nextStatus) => {
+    if (feeBusy.has(member.id) || member.feeStatus === nextStatus) return;
 
     setFeeBusy((prev) => new Set(prev).add(member.id));
     setMessage({ type: '', text: '' });
 
     try {
       await updateDoc(doc(db, 'users', member.id), {
-        membershipFeePaid: nextPaid,
+        feeStatus: nextStatus,
+        membershipFeePaid: nextStatus === 'fully_paid', // legacy flag kept in sync
         feeUpdatedBy: currentUser.uid,
         feeUpdatedAt: serverTimestamp()
       });
+      const info = feeStatusInfo(nextStatus);
       setMessage({
         type: 'success',
-        text: `${member.fullName || 'Member'} is now marked as ${nextPaid ? 'PAID' : 'UNPAID'} for the membership fee.`
+        text: `${member.fullName || 'Member'} is now marked as ${info.label.toUpperCase()} (${formatTZS(info.amount)}).`
       });
     } catch (error) {
       console.error('Fee update error:', error);
@@ -352,6 +415,9 @@ export default function CommandCenter() {
         </Alert>
       )}
 
+      {/* ---------- Treasury (top layer) ---------- */}
+      <TreasuryInsights ledger={ledger} ready={status === 'ready'} />
+
       {/* ---------- Analytics ---------- */}
       <section className="metric-grid" aria-label="Community analytics">
         <MetricCard
@@ -359,14 +425,14 @@ export default function CommandCenter() {
           icon={<UsersIcon width={20} height={20} />}
           label="Total Registered Community"
           value={status === 'ready' ? metrics.total : '—'}
-          hint={status === 'ready' ? `${metrics.feesPaid} membership fee${metrics.feesPaid === 1 ? '' : 's'} paid` : 'Loading...'}
+          hint={status === 'ready' ? `${metrics.feesPaid} fully paid for the year` : 'Loading...'}
         />
         <MetricCard
           tone="gold"
           icon={<WalletIcon width={20} height={20} />}
-          label="Membership Fees Outstanding"
+          label="Not Yet Fully Paid"
           value={status === 'ready' ? metrics.feesOutstanding : '—'}
-          hint={metrics.feesOutstanding > 0 ? 'Members yet to pay' : 'Everyone is paid up'}
+          hint={metrics.feesOutstanding > 0 ? 'Unpaid or Semester 1 only' : 'Everyone is paid up'}
         />
         <MetricCard
           tone="green"
@@ -402,8 +468,9 @@ export default function CommandCenter() {
             <span className="filter-label">Membership Fee</span>
             <select value={feeFilter} onChange={(e) => setFeeFilter(e.target.value)}>
               <option value="all">All members</option>
-              <option value="paid">Paid</option>
-              <option value="unpaid">Unpaid</option>
+              {FEE_STATUSES.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
             </select>
           </label>
 
@@ -507,7 +574,7 @@ export default function CommandCenter() {
                 {filteredUsers.map((u) => {
                   const isSelf = u.id === currentUser.uid;
                   return (
-                    <tr key={u.id} className={u.membershipFeePaid ? '' : 'row-unpaid'}>
+                    <tr key={u.id} className={u.feeStatus === 'fully_paid' ? '' : 'row-unpaid'}>
                       <td data-label="Member">
                         <div className="cell-member">
                           <MemberAvatar name={u.fullName || u.email || ''} photoUrl={u.profilePictureUrl} size="sm" />
@@ -542,12 +609,13 @@ export default function CommandCenter() {
                       </td>
                       <td data-label="Ministry">{u.ministryWing || 'None'}</td>
                       <td data-label="Membership Fee">
-                        <FeeToggle
-                          paid={u.membershipFeePaid === true}
+                        <FeeSegment
+                          size="sm"
+                          value={u.feeStatus}
                           busy={feeBusy.has(u.id)}
                           disabled={isSelf}
-                          name={u.fullName || u.email || 'member'}
-                          onToggle={() => toggleFee(u)}
+                          label={`Membership fee status for ${u.fullName || u.email || 'member'}`}
+                          onChange={(next) => setFeeStatus(u, next)}
                         />
                       </td>
                       <td data-label="Actions" className="cell-action">
@@ -590,7 +658,7 @@ export default function CommandCenter() {
         member={drawerMember}
         isSelf={drawerMember?.id === currentUser.uid}
         feeBusy={drawerMember ? feeBusy.has(drawerMember.id) : false}
-        onToggleFee={() => drawerMember && toggleFee(drawerMember)}
+        onFeeStatusChange={(next) => drawerMember && setFeeStatus(drawerMember, next)}
         onDelete={() => drawerMember && setMemberToDelete(drawerMember)}
         onClose={closeDrawer}
         canDelete={drawerMember ? canDelete(drawerMember) : false}

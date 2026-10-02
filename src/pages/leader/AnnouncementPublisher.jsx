@@ -7,6 +7,7 @@ import useRoleAnnouncements from '../../hooks/useRoleAnnouncements';
 import AnnouncementPost from '../../components/AnnouncementPost';
 import Alert from '../../components/Alert';
 import PosterUpload from '../../components/PosterUpload';
+import PublicAnnouncementCard from '../../components/PublicAnnouncementCard';
 import { CheckIcon, FileIcon, MegaphoneIcon, SendIcon } from '../../components/Icons';
 import { ANNOUNCEMENT_CATEGORIES, VISIBILITY_OPTIONS } from '../../data/constants';
 import '../../styles/leader.css';
@@ -102,6 +103,7 @@ function PublisherWorkspace({ editing, feed }) {
   const [form, setForm] = useState(() => formFrom(editing));
   const [saving, setSaving] = useState(false);
   const [posterBusy, setPosterBusy] = useState(false);
+  const [posterPreview, setPosterPreview] = useState(''); // local blob while uploading
   const [message, setMessage] = useState({ type: '', text: '' });
 
   const handleChange = (e) => {
@@ -226,6 +228,7 @@ function PublisherWorkspace({ editing, feed }) {
               value={form.imageUrl}
               onChange={(url) => setForm((prev) => ({ ...prev, imageUrl: url }))}
               onBusyChange={setPosterBusy}
+              onPreviewChange={setPosterPreview}
               disabled={saving}
             />
 
@@ -322,7 +325,20 @@ function PublisherWorkspace({ editing, feed }) {
           <section className="panel">
             <div className="panel-head">
               <h3>Live Preview</h3>
+              {form.visibleTo.includes('reader') && <span className="badge badge-gold">Public</span>}
             </div>
+
+            {/* Exact homepage card (same component + 16:9 poster canvas). */}
+            <div className="announcement-stage">
+              <span className="announcement-stage-label">
+                {form.visibleTo.includes('reader') ? 'Homepage card' : 'Homepage card (shown only if Readers is ticked)'}
+              </span>
+              <PublicAnnouncementCard
+                announcement={{ ...preview, imageUrl: posterPreview || preview.imageUrl, isNew: !isEdit }}
+              />
+            </div>
+
+            <span className="preview-subhead">Member feed</span>
             <AnnouncementPost announcement={preview} showAudience />
           </section>
 

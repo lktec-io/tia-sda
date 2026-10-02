@@ -240,6 +240,17 @@ export function YouTubeIcon(props) {
   );
 }
 
+export function ChurchIcon(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 2v5M9.5 4.5h5" />
+      <path d="M6 22V12l6-5 6 5v10" />
+      <path d="M3 22v-6l3-2M21 22v-6l-3-2" />
+      <path d="M10 22v-4a2 2 0 0 1 4 0v4M2 22h20" />
+    </svg>
+  );
+}
+
 export function ShopIcon(props) {
   return (
     <svg {...base} {...props}>

@@ -9,6 +9,8 @@ import { LockIcon, MapPinIcon } from '../../components/Icons';
 import {
   RESIDENTIAL_AREAS,
   canonicalArea,
+  feeStatusInfo,
+  getFeeStatus,
   formatAcademicLevel,
   formatCourse,
   formatRole,
@@ -112,7 +114,7 @@ export default function MyProfile() {
     { label: 'Course', value: formatCourse(userProfile?.academicDetails) },
     { label: 'Year of Study', value: formatYear(userProfile?.academicDetails?.yearOfStudy) },
     { label: 'Ministry Wing', value: userProfile?.ministryWing || 'None' },
-    { label: 'Membership Fee', value: userProfile?.membershipFeePaid ? 'Paid' : 'Not yet paid' },
+    { label: 'Membership Fee', value: feeStatusInfo(getFeeStatus(userProfile)).label },
     { label: 'Member Since', value: formatLongDate(userProfile?.createdAt) }
   ];
 

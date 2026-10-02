@@ -224,7 +224,8 @@ export default function Registration() {
         role: formData.accessLevel, // 'reader' | 'member' | 'associate' | 'leader' — defaults to 'member'
         // Leaders are active immediately.
         ...(isLeaderSignup ? { status: 'approved' } : {}),
-        membershipFeePaid: false,
+        feeStatus: 'unpaid', // semester ledger: 'unpaid' | 'semester1_paid' | 'fully_paid'
+        membershipFeePaid: false, // kept in sync (true only when fully paid)
         profilePictureUrl,
         academicDetails: {
           level: formData.academicLevel, // 'certificate' | 'diploma' | 'degree'

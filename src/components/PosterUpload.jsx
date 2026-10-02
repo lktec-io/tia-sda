@@ -13,7 +13,7 @@ import {
  * chosen (or dropped) and reports the secure URL through `onChange(url)`.
  * `onBusyChange(true|false)` lets the parent block submission while uploading.
  */
-export default function PosterUpload({ value, onChange, onBusyChange, disabled = false }) {
+export default function PosterUpload({ value, onChange, onBusyChange, onPreviewChange, disabled = false }) {
   const inputRef = useRef(null);
   const controllerRef = useRef(null);
   const [previewUrl, setPreviewUrl] = useState('');
@@ -45,7 +45,10 @@ export default function PosterUpload({ value, onChange, onBusyChange, disabled =
     const controller = new AbortController();
     controllerRef.current = controller;
 
-    setPreviewUrl(URL.createObjectURL(file));
+    const localPreview = URL.createObjectURL(file);
+    setPreviewUrl(localPreview);
+    // Lets the parent show the poster in its card preview while it uploads.
+    onPreviewChange?.(localPreview);
     setError('');
     setState('uploading');
     setBusy(true);
@@ -54,10 +57,12 @@ export default function PosterUpload({ value, onChange, onBusyChange, disabled =
       const secureUrl = await uploadImage(file, { signal: controller.signal });
       if (controller.signal.aborted) return;
       onChange(secureUrl);
+      onPreviewChange?.('');
       setState('done');
     } catch (uploadError) {
       if (uploadError.name === 'AbortError') return;
       console.error('Poster upload error:', uploadError);
+      onPreviewChange?.('');
       setState('error');
       setError(uploadError.message || 'Upload failed. Please try again.');
     } finally {
@@ -69,6 +74,7 @@ export default function PosterUpload({ value, onChange, onBusyChange, disabled =
     controllerRef.current?.abort();
     setBusy(false);
     setPreviewUrl('');
+    onPreviewChange?.('');
     setError('');
     setState('idle');
     onChange('');

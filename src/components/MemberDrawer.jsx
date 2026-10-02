@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import MemberAvatar from './MemberAvatar';
+import FeeSegment from './FeeSegment';
 import {
   BookIcon,
   CloseIcon,
@@ -11,9 +12,13 @@ import {
   WalletIcon
 } from './Icons';
 import {
+  FEE_ANNUAL_TZS,
   canonicalArea,
+  feeStatusInfo,
   formatAcademicLevel,
   formatRole,
+  formatTZS,
+  getFeeStatus,
   formatYear,
   getAcademicLevel,
   getCourseCode,
@@ -50,7 +55,7 @@ export default function MemberDrawer({
   member,
   isSelf,
   feeBusy,
-  onToggleFee,
+  onFeeStatusChange,
   onDelete,
   onClose,
   canDelete = false,
@@ -82,7 +87,8 @@ export default function MemberDrawer({
 
   if (!member) return null;
 
-  const feePaid = member.membershipFeePaid === true;
+  const feeStatus = getFeeStatus(member);
+  const fee = feeStatusInfo(feeStatus);
   const isLeader = isLeaderProfile(member);
   const academic = member.academicDetails;
   const area = canonicalArea(member.location?.residentialArea || '');
@@ -108,8 +114,8 @@ export default function MemberDrawer({
               <span className={`badge ${isLeader ? 'badge-gold' : ''}`}>
                 {formatRole(member)}
               </span>
-              <span className={`badge ${feePaid ? 'badge-success' : 'badge-warning'}`}>
-                {feePaid ? 'Fee Paid' : 'Fee Unpaid'}
+              <span className={`badge ${feeStatus === 'fully_paid' ? 'badge-success' : feeStatus === 'unpaid' ? 'badge-warning' : ''}`}>
+                Fee: {fee.label}
               </span>
             </div>
             {member.profilePictureUrl ? (
@@ -133,6 +139,31 @@ export default function MemberDrawer({
               </a>
             )}
           </div>
+
+          <section className="drawer-section drawer-fee">
+            <h3>
+              <WalletIcon width={16} height={16} />
+              Membership Fee Ledger
+            </h3>
+            <div className="drawer-fee-summary">
+              <strong>{formatTZS(fee.amount)}</strong>
+              <span>paid of {formatTZS(FEE_ANNUAL_TZS)} this year</span>
+            </div>
+            <FeeSegment
+              value={feeStatus}
+              busy={feeBusy}
+              disabled={isSelf}
+              label={`Membership fee status for ${member.fullName || 'this member'}`}
+              onChange={onFeeStatusChange}
+            />
+            <p className="drawer-fee-note">
+              {isSelf
+                ? 'Leaders cannot change their own fee status.'
+                : feeBusy
+                  ? 'Saving…'
+                  : `Last updated ${member.feeUpdatedAt ? formatLongDate(member.feeUpdatedAt) : 'never'}.`}
+            </p>
+          </section>
 
           <Section
             icon={<PhoneIcon width={16} height={16} />}
@@ -170,8 +201,7 @@ export default function MemberDrawer({
             rows={[
               { label: 'Access Level', value: formatRole(member) },
               { label: 'Ministry Wing', value: member.ministryWing || 'None' },
-              { label: 'Membership Fee', value: feePaid ? 'Paid' : 'Not yet paid' },
-              { label: 'Fee Updated', value: member.feeUpdatedAt ? formatLongDate(member.feeUpdatedAt) : '' }
+              { label: 'Membership Fee', value: `${fee.label} (${formatTZS(fee.amount)})` }
             ]}
           />
 
@@ -187,16 +217,6 @@ export default function MemberDrawer({
         </div>
 
         <footer className="drawer-foot">
-          <button
-            type="button"
-            className={`btn btn-sm ${feePaid ? 'btn-outline' : 'btn-approve'}`}
-            onClick={onToggleFee}
-            disabled={feeBusy || isSelf}
-            title={isSelf ? 'Leaders cannot change their own fee status' : undefined}
-          >
-            {feeBusy ? <span className="spinner" /> : <WalletIcon width={16} height={16} />}
-            {feePaid ? 'Mark Fee Unpaid' : 'Mark Fee Paid'}
-          </button>
           <button
             type="button"
             className="btn btn-danger btn-sm"

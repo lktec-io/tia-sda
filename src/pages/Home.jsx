@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import AnnouncementModal from '../components/AnnouncementModal';
+import PublicAnnouncementCard from '../components/PublicAnnouncementCard';
 import {
   ArrowRightIcon,
   BookIcon,
@@ -22,23 +23,17 @@ import {
   choirChannels,
   heroSlides,
   fellowshipUpdates,
-  latestUpdateLabel,
   sabbathGuidelines,
   sabbathSchedule,
   shopifyStoreUrl,
   swahiliLabels,
   welfarePrograms
 } from '../data/siteContent';
-import { formatDate, toDate } from '../utils/format';
-import { cloudinaryBanner } from '../lib/cloudinary';
+import { toDate } from '../utils/format';
 import '../styles/home.css';
 
 const MAX_ANNOUNCEMENTS = 6;
-const EXCERPT_LENGTH = 160;
 const NEW_POST_WINDOW_MS = 48 * 60 * 60 * 1000; // "Latest update" badge for posts < 48 h old
-
-const truncate = (text = '', length = EXCERPT_LENGTH) =>
-  text.length > length ? `${text.slice(0, length).trimEnd()}…` : text;
 
 const CHANNEL_ICONS = {
   instagram: InstagramIcon,
@@ -51,69 +46,6 @@ function Sw({ children, className = '' }) {
     <span className={`sw-label ${className}`.trim()} lang="sw">
       {children}
     </span>
-  );
-}
-
-// Poster canvas: the leader-uploaded event poster, or a deep gradient fallback.
-function PosterCanvas({ imageUrl, category }) {
-  const [failedUrl, setFailedUrl] = useState(null);
-  const showImage = imageUrl && failedUrl !== imageUrl;
-
-  return (
-    <div className={`announcement-poster ${showImage ? 'has-image' : ''}`}>
-      {showImage ? (
-        <img
-          src={cloudinaryBanner(imageUrl, 800)}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          onError={() => setFailedUrl(imageUrl)}
-        />
-      ) : (
-        <span className="announcement-poster-fallback" aria-hidden="true">
-          <CalendarIcon width={30} height={30} />
-          <span>{category}</span>
-        </span>
-      )}
-    </div>
-  );
-}
-
-// Whole card is clickable (stretched title button) and opens the announcement modal.
-function AnnouncementCard({ announcement, onOpen }) {
-  const content = announcement.content || '';
-  const published = announcement.publishedAt || announcement.createdAt;
-  const publishedDate = toDate(published);
-  const category = announcement.category || 'General';
-
-  return (
-    <article className={`announcement-card ${announcement.isNew ? 'is-new' : ''}`.trim()}>
-      {announcement.isNew && (
-        <span className="new-chip">
-          <span className="pulse-dot" aria-hidden="true" />
-          {latestUpdateLabel}
-        </span>
-      )}
-      <PosterCanvas imageUrl={announcement.imageUrl} category={category} />
-      <div className="announcement-body">
-        <div className="announcement-top">
-          <span className="badge">{category}</span>
-          <time className="announcement-date" dateTime={publishedDate ? publishedDate.toISOString() : undefined}>
-            <CalendarIcon width={16} height={16} />
-            {formatDate(published)}
-          </time>
-        </div>
-        <h3>
-          <button type="button" className="announcement-open" onClick={() => onOpen(announcement)} aria-haspopup="dialog">
-            {announcement.title || 'Untitled announcement'}
-          </button>
-        </h3>
-        <p>{truncate(content)}</p>
-        <span className="announcement-more" aria-hidden="true">
-          Read full announcement <ArrowRightIcon width={15} height={15} />
-        </span>
-      </div>
-    </article>
   );
 }
 
@@ -311,7 +243,7 @@ export default function Home() {
       </section>
 
       {/* ================= ANNOUNCEMENTS ================= */}
-      <section className="section" id="announcements">
+      <section className="section announcements-showcase" id="announcements">
         <div className="container">
           <div className="section-head">
             <span className="eyebrow">Latest News</span>
@@ -323,7 +255,7 @@ export default function Home() {
           </div>
 
           {feedStatus === 'loading' && (
-            <div className="announcement-grid" role="status" aria-label="Loading announcements">
+            <div className="announcement-masonry" role="status" aria-label="Loading announcements">
               {Array.from({ length: 3 }, (_, i) => <AnnouncementSkeleton key={i} />)}
             </div>
           )}
@@ -342,9 +274,9 @@ export default function Home() {
           )}
 
           {feedStatus === 'ready' && announcements.length > 0 && (
-            <div className="announcement-grid">
+            <div className="announcement-masonry">
               {announcements.map((item) => (
-                <AnnouncementCard key={item.id} announcement={item} onOpen={setOpenAnnouncement} />
+                <PublicAnnouncementCard key={item.id} announcement={item} onOpen={setOpenAnnouncement} />
               ))}
             </div>
           )}

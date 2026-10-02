@@ -275,6 +275,38 @@ describe('Profiles: self access', () => {
 });
 
 // ---------------------------------------------------------------------------
+describe('Semester fee ledger (feeStatus)', () => {
+  const feeUpdate = (status, by = 'leader1') => ({
+    feeStatus: status,
+    membershipFeePaid: status === 'fully_paid',
+    feeUpdatedBy: by,
+    feeUpdatedAt: serverTimestamp()
+  });
+
+  test('registration may include feeStatus unpaid, but never a paid state', async () => {
+    await assertSucceeds(setDoc(doc(as('a'), 'users/a'), registration('a', { feeStatus: 'unpaid' })));
+    await assertFails(setDoc(doc(as('b'), 'users/b'), registration('b', { feeStatus: 'semester1_paid' })));
+  });
+
+  test('leader can set Semester 1 Paid and Fully Paid with an audit trail', async () => {
+    await assertSucceeds(updateDoc(doc(as('leader1'), 'users/member1'), feeUpdate('semester1_paid')));
+    await assertSucceeds(updateDoc(doc(as('leader1'), 'users/member1'), feeUpdate('fully_paid')));
+    await assertSucceeds(updateDoc(doc(as('leader1'), 'users/member1'), feeUpdate('unpaid')));
+  });
+
+  test('unknown status, mismatched legacy flag or missing audit is rejected', async () => {
+    await assertFails(updateDoc(doc(as('leader1'), 'users/member1'), feeUpdate('half_paid')));
+    await assertFails(
+      updateDoc(doc(as('leader1'), 'users/member1'), { ...feeUpdate('semester1_paid'), membershipFeePaid: true })
+    );
+    await assertFails(updateDoc(doc(as('leader1'), 'users/member1'), { feeStatus: 'fully_paid', membershipFeePaid: true }));
+  });
+
+  test('member cannot change their own feeStatus', async () => {
+    await assertFails(updateDoc(doc(as('member1'), 'users/member1'), feeUpdate('fully_paid', 'member1')));
+  });
+});
+
 describe('Leadership Command Center', () => {
   test('leader can list the full registry', async () => {
     await assertSucceeds(getDocs(collection(as('leader1'), 'users')));

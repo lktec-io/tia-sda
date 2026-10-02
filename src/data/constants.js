@@ -12,6 +12,60 @@ export const isLeaderProfile = (profile) => profile?.role === 'leader';
 
 export const formatRole = (profile) => ROLE_LABELS[profile?.role] || profile?.role || '—';
 
+// ---------------------------------------------------------------- membership fee ledger
+// Keep in sync with the feeStatus values allowed in firestore.rules.
+export const FEE_PER_SEMESTER_TZS = 2500;
+export const FEE_ANNUAL_TZS = 5000;
+
+export const FEE_STATUSES = [
+  {
+    value: 'unpaid',
+    label: 'Unpaid',
+    short: 'Unpaid',
+    sw: 'Haijalipwa',
+    amount: 0,
+    percent: 0,
+    tone: 'amber',
+    message: 'Ada Haijalipwa • TZS 5,000/Year or TZS 2,500/Semester. Please support the ministry.'
+  },
+  {
+    value: 'semester1_paid',
+    label: 'Semester 1 Paid',
+    short: 'Sem 1',
+    sw: 'Semester 1 Imelipwa',
+    amount: FEE_PER_SEMESTER_TZS,
+    percent: 50,
+    tone: 'sapphire',
+    message: 'Semester 1 Imekamilika (TZS 2,500 Paid) • Kumbuka kukamilisha ada ya Semester 2.'
+  },
+  {
+    value: 'fully_paid',
+    label: 'Fully Paid',
+    short: 'Full',
+    sw: 'Imekamilika',
+    amount: FEE_ANNUAL_TZS,
+    percent: 100,
+    tone: 'emerald',
+    message: 'Ada Imekamilika Kikamilifu (TZS 5,000 Paid) • Thank you for your faithful stewardship!'
+  }
+];
+
+const FEE_BY_VALUE = Object.fromEntries(FEE_STATUSES.map((s) => [s.value, s]));
+
+/**
+ * Current fee status of a profile. Profiles created before the semester ledger only
+ * have the boolean `membershipFeePaid` (true → fully paid, false → unpaid).
+ */
+export function getFeeStatus(profile) {
+  if (FEE_BY_VALUE[profile?.feeStatus]) return profile.feeStatus;
+  return profile?.membershipFeePaid === true ? 'fully_paid' : 'unpaid';
+}
+
+export const feeStatusInfo = (status) => FEE_BY_VALUE[status] || FEE_BY_VALUE.unpaid;
+
+/** "150,000 TZS" */
+export const formatTZS = (amount) => `${Math.round(amount || 0).toLocaleString('en-US')} TZS`;
+
 // Audience tags an announcement can be published to.
 export const VISIBILITY_OPTIONS = [
   { value: 'reader', label: 'Readers', hint: 'Public website & visitors' },

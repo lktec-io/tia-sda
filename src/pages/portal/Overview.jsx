@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import useRoleAnnouncements from '../../hooks/useRoleAnnouncements';
 import AnnouncementPost from '../../components/AnnouncementPost';
 import Alert from '../../components/Alert';
+import FeeTracker from '../../components/FeeTracker';
 import {
   ArrowRightIcon,
   BookIcon,
@@ -16,9 +17,11 @@ import {
 } from '../../components/Icons';
 import {
   canonicalArea,
+  feeStatusInfo,
   formatAcademicLevel,
   formatCourse,
   formatRole,
+  formatTZS,
   formatYear,
   getAcademicLevel,
   getHouseNumber
@@ -33,7 +36,8 @@ const ROLE_SUMMARY = {
 };
 
 export default function Overview() {
-  const { userProfile, feedRole, isLeader, membershipFeePaid } = useAuth();
+  const { userProfile, feedRole, isLeader, feeStatus } = useAuth();
+  const fee = feeStatusInfo(feeStatus);
   const { announcements, status } = useRoleAnnouncements();
 
   const firstName = (userProfile?.fullName || '').split(' ')[0] || 'friend';
@@ -50,7 +54,7 @@ export default function Overview() {
     { icon: BookIcon, label: 'Course', value: formatCourse(academic) },
     { icon: BookIcon, label: 'Year of Study', value: formatYear(academic?.yearOfStudy) },
     { icon: HeartIcon, label: 'Ministry Wing', value: userProfile?.ministryWing || 'None' },
-    { icon: WalletIcon, label: 'Membership Fee', value: membershipFeePaid ? 'Paid' : 'Not yet paid' },
+    { icon: WalletIcon, label: 'Membership Fee', value: `${fee.label} · ${formatTZS(fee.amount)}` },
     { icon: UserIcon, label: 'Member Since', value: formatLongDate(userProfile?.createdAt) }
   ];
 
@@ -64,11 +68,13 @@ export default function Overview() {
         </div>
         <div className="welcome-badges">
           <span className="badge badge-gold">{formatRole(userProfile)}</span>
-          <span className={`badge ${membershipFeePaid ? 'badge-success' : 'badge-warning'}`}>
-            {membershipFeePaid ? 'Fee Paid' : 'Fee Unpaid'}
+          <span className={`badge ${fee.value === 'fully_paid' ? 'badge-success' : fee.value === 'unpaid' ? 'badge-warning' : ''}`}>
+            Fee: {fee.label}
           </span>
         </div>
       </section>
+
+      <FeeTracker status={feeStatus} />
 
       <section className="quick-grid">
         <Link to="/dashboard/announcements" className="quick-card">
