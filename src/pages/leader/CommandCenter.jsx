@@ -32,6 +32,7 @@ import {
   formatYear
 } from '../../data/constants';
 import useRegistry from '../../hooks/useRegistry';
+import useRegistryPrint from '../../hooks/useRegistryPrint';
 import { computeLedger, exportRegistryCsv, getRegistryError } from '../../lib/registry';
 import { formatDate, toMillis } from '../../utils/format';
 import '../../styles/leader.css';
@@ -117,6 +118,7 @@ export default function CommandCenter() {
   // Live, enriched registry shared with the Executive Overview (see hooks/useRegistry).
   const { members: registry, status, error: loadError, retry: retryRegistry } = useRegistry();
   const users = registry;
+  const { exportPdf, printPortal, preparing: preparingPdf } = useRegistryPrint();
 
   const [search, setSearch] = useState('');
   const [feeFilter, setFeeFilter] = useState('all');
@@ -413,15 +415,31 @@ export default function CommandCenter() {
             <span className="registry-toolbar-note">Newest registrations are listed first.</span>
           )}
 
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={exportCsv}
-            disabled={status !== 'ready' || filteredUsers.length === 0}
-          >
-            <DownloadIcon width={16} height={16} />
-            Export Registry to CSV
-          </button>
+          <div className="registry-exports">
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() =>
+                exportPdf(
+                  filteredUsers,
+                  filtersActive ? `Filtered view (${filteredUsers.length} of ${registry.length})` : `All members (${registry.length})`
+                )
+              }
+              disabled={status !== 'ready' || filteredUsers.length === 0 || preparingPdf}
+            >
+              <FileIcon width={16} height={16} />
+              <span>{preparingPdf ? 'Preparing PDF…' : 'Export Registry to PDF'}</span>
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={exportCsv}
+              disabled={status !== 'ready' || filteredUsers.length === 0}
+            >
+              <DownloadIcon width={16} height={16} />
+              <span>Export Registry to CSV</span>
+            </button>
+          </div>
         </div>
 
         {message.text && <Alert type={message.type}>{message.text}</Alert>}
@@ -538,6 +556,8 @@ export default function CommandCenter() {
       </section>
 
       <PublishedAnnouncements />
+
+      {printPortal}
 
       <MemberDrawer
         member={drawerMember}

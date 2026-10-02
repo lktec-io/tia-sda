@@ -16,6 +16,7 @@ export default function useRegistry() {
   const [status, setStatus] = useState('loading'); // loading | ready | error
   const [error, setError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [loadedAt, setLoadedAt] = useState(null); // ms timestamp of the latest snapshot
 
   useEffect(() => {
     const debug = { query: 'users (full registry)', uid: currentUser?.uid ?? null, role: userRole };
@@ -34,6 +35,7 @@ export default function useRegistry() {
         (snapshot) => {
           try {
             setUsers(snapshot.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) })));
+            setLoadedAt(Date.now());
             setError(null);
             setStatus('ready');
           } catch (err) {
@@ -57,5 +59,5 @@ export default function useRegistry() {
 
   const members = useMemo(() => users.map(enrichMember), [users]);
 
-  return { members, status, error, retry };
+  return { members, status, error, retry, loadedAt };
 }

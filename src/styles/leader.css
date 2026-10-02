@@ -163,6 +163,12 @@
   margin-bottom: 16px;
 }
 
+.registry-exports {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .registry-toolbar-note {
   font-size: 13px;
   color: var(--text-muted);

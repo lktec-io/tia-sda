@@ -1,57 +1,58 @@
-import { CheckIcon, WalletIcon } from './Icons';
-import { FEE_ANNUAL_TZS, FEE_STATUSES, feeStatusInfo, formatTZS } from '../data/constants';
+import DonutChart from './charts/DonutChart';
+import { CheckIcon } from './Icons';
+import { FEE_ANNUAL_TZS, FEE_PER_SEMESTER_TZS, feeStatusInfo, formatTZS } from '../data/constants';
 
 /**
- * Member-facing semester fee progress tracker:
- * unpaid → 0% amber · semester1_paid → 50% sapphire · fully_paid → 100% emerald.
+ * Member-facing fee obligation block: a soft progress arc (paid vs remaining of the
+ * annual 5,000 TZS) beside the semester checklist and guidance message.
  */
 export default function FeeTracker({ status }) {
   const info = feeStatusInfo(status);
-  const paidIndex = FEE_STATUSES.findIndex((s) => s.value === info.value);
+  const remaining = FEE_ANNUAL_TZS - info.amount;
+  const sem1Done = info.amount >= FEE_PER_SEMESTER_TZS;
+  const sem2Done = info.amount >= FEE_ANNUAL_TZS;
 
   return (
-    <section className={`fee-tracker fee-tone-${info.tone}`} aria-labelledby="fee-tracker-title">
-      <div className="fee-tracker-head">
-        <span className="fee-tracker-icon">
-          <WalletIcon width={20} height={20} />
-        </span>
-        <div className="fee-tracker-titles">
-          <h3 id="fee-tracker-title">Membership Fee Status</h3>
-          <span lang="sw">Hali ya Ada ya Mwanachama</span>
-        </div>
-        <div className="fee-tracker-amount">
+    <section className="fee-arc-card" aria-labelledby="fee-arc-title">
+      <DonutChart
+        size={168}
+        thickness={14}
+        showLegend={false}
+        title="Annual membership fee progress"
+        centerValue={`${info.percent}%`}
+        centerLabel="of annual fee"
+        segments={[
+          { key: 'paid', label: 'Paid', value: info.amount, color: '#1a446c' },
+          { key: 'remaining', label: 'Remaining', value: remaining, color: '#eef2f6' }
+        ]}
+      />
+
+      <div className="fee-arc-body">
+        <h3 id="fee-arc-title">Membership Fee Status</h3>
+        <span className="fee-arc-sw" lang="sw">Hali ya Ada ya Mwanachama</span>
+
+        <div className="fee-arc-amount">
           <strong>{formatTZS(info.amount)}</strong>
-          <span>of {formatTZS(FEE_ANNUAL_TZS)}</span>
+          <span>paid of {formatTZS(FEE_ANNUAL_TZS)} this year</span>
         </div>
+
+        <ul className="fee-arc-steps">
+          <li className={sem1Done ? 'is-done' : ''}>
+            <span className="fee-arc-check" aria-hidden="true">{sem1Done && <CheckIcon width={12} height={12} />}</span>
+            Semester 1 · {formatTZS(FEE_PER_SEMESTER_TZS)}
+            <span className="sr-only">{sem1Done ? '(paid)' : '(not yet paid)'}</span>
+          </li>
+          <li className={sem2Done ? 'is-done' : ''}>
+            <span className="fee-arc-check" aria-hidden="true">{sem2Done && <CheckIcon width={12} height={12} />}</span>
+            Semester 2 · {formatTZS(FEE_PER_SEMESTER_TZS)}
+            <span className="sr-only">{sem2Done ? '(paid)' : '(not yet paid)'}</span>
+          </li>
+        </ul>
+
+        <p className="fee-arc-message">
+          <em>{info.message}</em>
+        </p>
       </div>
-
-      <div
-        className="fee-tracker-bar"
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={info.percent}
-        aria-valuetext={`${info.percent}% — ${info.label}`}
-      >
-        <span className="fee-tracker-fill" style={{ width: `${info.percent}%` }} />
-        <span className="fee-tracker-midpoint" aria-hidden="true" />
-      </div>
-
-      <ol className="fee-tracker-steps" aria-hidden="true">
-        {FEE_STATUSES.map((step, index) => {
-          const done = index > 0 && index <= paidIndex;
-          return (
-            <li key={step.value} className={done ? 'is-done' : ''}>
-              <span className="fee-tracker-dot">{done && <CheckIcon width={11} height={11} />}</span>
-              {index === 0 ? 'Start' : step.label}
-            </li>
-          );
-        })}
-      </ol>
-
-      <p className="fee-tracker-message">
-        <em>{info.message}</em>
-      </p>
     </section>
   );
 }

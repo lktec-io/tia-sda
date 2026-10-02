@@ -154,6 +154,26 @@ function WorshipWords({ slides, slide }) {
   );
 }
 
+/**
+ * Introduction line, cross-faded on the same index as the photo and scripture:
+ * every line is stacked in one grid cell; the active line dissolves in and rises
+ * (opacity + translateY 15px → 0) while the previous one dissolves away.
+ */
+function HeroIntro({ slides, slide }) {
+  return (
+    <div className="hero-intro">
+      {slides.map((item, index) => {
+        const state = index === slide.active ? 'is-active' : index === slide.previous ? 'is-leaving' : '';
+        return (
+          <p key={index} className={`hero-lead hero-intro-line ${state}`.trim()} aria-hidden={index !== slide.active}>
+            {item.intro}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Home() {
   const [announcements, setAnnouncements] = useState([]);
   const [feedStatus, setFeedStatus] = useState('loading'); // loading | ready | error
@@ -208,11 +228,9 @@ export default function Home() {
         </div>
 
         <div className="container hero-inner">
-          {/* Text re-rises with every background slide (bound to the slideshow clock). */}
-          <div
-            className={`hero-copy ${animated ? (slide.tick % 2 === 0 ? 'hero-rise-a' : 'hero-rise-b') : ''}`.trim()}
-            data-slide={slide.active}
-          >
+          {/* Branding, buttons and pillars stay perfectly still; only the scripture and the
+              introduction line cross-fade, locked to the background photo's index. */}
+          <div className="hero-copy" data-slide={slide.active}>
             <span className="hero-kicker">
               <span className="hero-kicker-dot" />
               Seventh-day Adventist Student Church
@@ -220,12 +238,8 @@ export default function Home() {
             <h1>
               TUCASA <span>TIA Mbeya</span>
             </h1>
-            {/* Scripture phrase — same index as the background photo. */}
             <WorshipWords slides={heroSlides} slide={slide} />
-            <p className="hero-lead">
-              A home for worship, fellowship and service at the Tanzania Institute of Accountancy,
-              Mbeya. Grow in faith, sing with purpose and serve alongside fellow students.
-            </p>
+            <HeroIntro slides={heroSlides} slide={slide} />
 
             <div className="hero-cta">
               <Link to="/register" className="btn btn-gold">

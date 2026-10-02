@@ -10,16 +10,53 @@ export const album = {
   videoSrc: '/assets/choir.mp4'
 };
 
-// Hero slideshow: every slide is ONE photo locked to ONE scripture phrase, so the image
-// and the words always change together (same array index). Photos are served from
-// /public/assets/ and may repeat; to add a slide, add a photo + phrase pair here.
+// Hero slideshow: every slide is ONE photo locked to ONE scripture phrase and ONE
+// introduction line, so image and words always change together (same array index).
+// Photos are served from /public/assets/ and may repeat; to add a slide, add all
+// fields together here.
 export const heroSlides = [
-  { image: '/assets/tucasa1.jpg', en: 'The Lord Is My Shepherd', sw: 'Bwana Ndiye Mchungaji Wangu', ref: 'Zaburi 23:1' },
-  { image: '/assets/tucasa2.jpg', en: 'Praise the Lord', sw: 'Msifuni Bwana', ref: 'Zaburi 150:1' },
-  { image: '/assets/tucasa3.jpg', en: 'Give Thanks to the Lord', sw: 'Mshukuruni Bwana', ref: 'Zaburi 136:1' },
-  { image: '/assets/tucasa1.jpg', en: 'Remember the Sabbath Day', sw: 'Ikumbuke Siku ya Sabato', ref: 'Kutoka 20:8' },
-  { image: '/assets/tucasa2.jpg', en: 'God Is Love', sw: 'Mungu ni Upendo', ref: '1 Yohana 4:8' },
-  { image: '/assets/tucasa3.jpg', en: 'Jesus Is Coming Again', sw: 'Yesu Anakuja Tena', ref: 'Yohana 14:3' }
+  {
+    image: '/assets/tucasa1.jpg',
+    en: 'The Lord Is My Shepherd',
+    sw: 'Bwana Ndiye Mchungaji Wangu',
+    ref: 'Zaburi 23:1',
+    intro: 'A home for worship, fellowship and service at the Tanzania Institute of Accountancy, Mbeya.'
+  },
+  {
+    image: '/assets/tucasa2.jpg',
+    en: 'Praise the Lord',
+    sw: 'Msifuni Bwana',
+    ref: 'Zaburi 150:1',
+    intro: 'Lift your voice with the TUCASA choir and a student family that sings with purpose.'
+  },
+  {
+    image: '/assets/tucasa3.jpg',
+    en: 'Give Thanks to the Lord',
+    sw: 'Mshukuruni Bwana',
+    ref: 'Zaburi 136:1',
+    intro: 'Grow in faith through Sabbath worship, Bible study and prayer with fellow students.'
+  },
+  {
+    image: '/assets/tucasa1.jpg',
+    en: 'Remember the Sabbath Day',
+    sw: 'Ikumbuke Siku ya Sabato',
+    ref: 'Kutoka 20:8',
+    intro: 'Keep the Sabbath holy with a welcoming church family right here on campus.'
+  },
+  {
+    image: '/assets/tucasa2.jpg',
+    en: 'God Is Love',
+    sw: 'Mungu ni Upendo',
+    ref: '1 Yohana 4:8',
+    intro: 'Serve one another in love through welfare, visitation and outreach programs.'
+  },
+  {
+    image: '/assets/tucasa3.jpg',
+    en: 'Jesus Is Coming Again',
+    sw: 'Yesu Anakuja Tena',
+    ref: 'Yohana 14:3',
+    intro: 'Share the blessed hope of His return with every student at TIA Mbeya.'
+  }
 ];
 export const HERO_SLIDE_INTERVAL_MS = 3500;
 

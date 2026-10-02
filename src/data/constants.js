@@ -26,6 +26,7 @@ export const FEE_STATUSES = [
     amount: 0,
     percent: 0,
     tone: 'amber',
+    chartColor: '#cbd5e1',
     message: 'Ada Haijalipwa • TZS 5,000/Year or TZS 2,500/Semester. Please support the ministry.'
   },
   {
@@ -36,6 +37,7 @@ export const FEE_STATUSES = [
     amount: FEE_PER_SEMESTER_TZS,
     percent: 50,
     tone: 'sapphire',
+    chartColor: '#d4af37',
     message: 'Semester 1 Imekamilika (TZS 2,500 Paid) • Kumbuka kukamilisha ada ya Semester 2.'
   },
   {
@@ -46,6 +48,7 @@ export const FEE_STATUSES = [
     amount: FEE_ANNUAL_TZS,
     percent: 100,
     tone: 'emerald',
+    chartColor: '#0f2b46',
     message: 'Ada Imekamilika Kikamilifu (TZS 5,000 Paid) • Thank you for your faithful stewardship!'
   }
 ];

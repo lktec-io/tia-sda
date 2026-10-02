@@ -1,0 +1,216 @@
+/* ==========================================================================
+   CHARTS — dignified, minimalist SVG analytics (donut + growth)
+   Palette: deep church blue, muted sapphire, refined gold, slate neutrals.
+   ========================================================================== */
+
+/* ---------- Donut ---------- */
+.donut {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.donut-visual {
+  position: relative;
+  flex-shrink: 0;
+  aspect-ratio: 1;
+}
+
+.donut-visual svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.donut-arc {
+  transition: stroke-dasharray 0.8s cubic-bezier(0.22, 1, 0.36, 1), stroke-dashoffset 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.donut-center strong {
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--church-blue);
+  font-variant-numeric: tabular-nums;
+}
+
+.donut-center span {
+  max-width: 70%;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.donut-legend {
+  flex: 1;
+  min-width: 180px;
+}
+
+.donut-legend ul {
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.donut-legend li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.donut-legend li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.donut-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.donut-legend-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+
+.donut-legend-label small {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.donut-legend-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--church-blue);
+  font-variant-numeric: tabular-nums;
+}
+
+.donut-legend-value small {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* ---------- Growth chart ---------- */
+.growth {
+  margin: 0;
+}
+
+.growth svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.growth-grid {
+  stroke: #e2e8f0;
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+.growth-axis {
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  fill: #94a3b8;
+}
+
+.growth-bar {
+  fill: rgba(212, 175, 55, 0.35);
+  transition: fill 0.3s ease-out;
+}
+
+.growth-bar:hover {
+  fill: rgba(212, 175, 55, 0.6);
+}
+
+.growth-line {
+  fill: none;
+  stroke: #1a446c;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.growth-point {
+  fill: #ffffff;
+  stroke: #1a446c;
+  stroke-width: 2.5;
+}
+
+.growth-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.growth-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.growth-key {
+  display: inline-block;
+}
+
+.growth-key-line {
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+  background: #1a446c;
+}
+
+.growth-key-bar {
+  width: 10px;
+  height: 12px;
+  border-radius: 2px;
+  background: rgba(212, 175, 55, 0.5);
+}
+
+@media (max-width: 560px) {
+  .donut {
+    justify-content: center;
+  }
+
+  .donut-legend {
+    min-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .donut-arc {
+    transition: none;
+  }
+}

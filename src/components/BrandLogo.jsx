@@ -1,16 +1,20 @@
 import { useState } from 'react';
 
-// Renders /public/logo.png inside the gold-ringed circle.
-// Falls back to the "T" monogram until the logo file is added.
+// Official church logo, served from /public/logo.png.
+export const LOGO_SRC = '/logo.png';
+
+/**
+ * Standard church logo inside the gold-ringed brand circle. Used by the navbar, auth
+ * card headers, dashboard sidebar, footer and the loading screen. If /logo.png is not
+ * present yet, the image is hidden and only the branded ring shows (no letter fallback).
+ */
 export default function BrandLogo({ className = '' }) {
-  const [failed, setFailed] = useState(false);
+  const [missing, setMissing] = useState(false);
 
   return (
     <span className={`logo-circle ${className}`.trim()}>
-      {failed ? (
-        <span aria-hidden="true">T</span>
-      ) : (
-        <img src="/logo.png" alt="TUCASA TIA Mbeya logo" onError={() => setFailed(true)} />
+      {!missing && (
+        <img src={LOGO_SRC} alt="TUCASA TIA Mbeya — TIA SDA Church logo" onError={() => setMissing(true)} />
       )}
     </span>
   );

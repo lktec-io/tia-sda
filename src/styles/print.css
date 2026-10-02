@@ -1,0 +1,167 @@
+/* ==========================================================================
+   PRINT / PDF — Membership Registry report
+   On screen the report is invisible; when printing, the whole app (#root) is
+   hidden and only the report prints, A4 landscape with clean page breaks.
+   ========================================================================== */
+
+.print-report {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 12mm 12mm 14mm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+  }
+
+  body > #root {
+    display: none !important;
+  }
+
+  .print-report {
+    display: block;
+    font-family: 'Nunito', Arial, sans-serif;
+    color: #0f172a;
+    font-size: 10pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ---- Branded header, logo at the absolute top centre ---- */
+  .print-header {
+    text-align: center;
+    padding-bottom: 10pt;
+    margin-bottom: 12pt;
+    border-bottom: 2pt solid #d4af37;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .print-logo {
+    display: block;
+    width: 64pt;
+    height: 64pt;
+    margin: 0 auto 6pt;
+    object-fit: contain;
+  }
+
+  .print-church {
+    margin: 0;
+    font-size: 9pt;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    color: #b8932a;
+  }
+
+  .print-title {
+    margin: 2pt 0;
+    font-size: 18pt;
+    font-weight: 800;
+    color: #0f2b46;
+  }
+
+  .print-meta {
+    margin: 0;
+    font-size: 9pt;
+    color: #64748b;
+  }
+
+  /* ---- Summary strip ---- */
+  .print-summary {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 12pt;
+    border: 1pt solid #e2e8f0;
+    border-radius: 4pt;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-summary div {
+    flex: 1;
+    padding: 6pt 8pt;
+    text-align: center;
+    border-left: 1pt solid #e2e8f0;
+  }
+
+  .print-summary div:first-child {
+    border-left: none;
+  }
+
+  .print-summary span {
+    display: block;
+    font-size: 7.5pt;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+
+  .print-summary strong {
+    font-size: 12pt;
+    color: #0f2b46;
+  }
+
+  /* ---- Minimal data matrix ---- */
+  .print-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  /* Repeat the header row on every printed page */
+  .print-table thead {
+    display: table-header-group;
+  }
+
+  .print-table th {
+    padding: 5pt 6pt;
+    text-align: left;
+    font-size: 7.5pt;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #0f2b46;
+    border-bottom: 1.2pt solid #0f2b46;
+  }
+
+  .print-table td {
+    padding: 4.5pt 6pt;
+    vertical-align: top;
+    border-bottom: 0.6pt solid #e2e8f0;
+  }
+
+  .print-table td strong {
+    display: block;
+    font-weight: 700;
+  }
+
+  .print-table td small {
+    display: block;
+    font-size: 7.5pt;
+    color: #64748b;
+  }
+
+  .print-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-table tbody tr:nth-child(even) td {
+    background: #f8fafc;
+  }
+
+  .print-footer {
+    margin-top: 12pt;
+    padding-top: 6pt;
+    border-top: 0.6pt solid #e2e8f0;
+    font-size: 8pt;
+    text-align: center;
+    color: #64748b;
+  }
+}

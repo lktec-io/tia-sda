@@ -38,6 +38,29 @@ export function computeLedger(members) {
   return { total: members.length, fullyPaid, semesterPaid, unpaid, revenue, potential, outstanding: potential - revenue };
 }
 
+/**
+ * Membership growth for the last `months` calendar months ending at `endMs`:
+ * [{ label: 'Mar', added, total }]. Profiles without a createdAt count as existing
+ * before the window (they add to `total` but not to `added`).
+ */
+export function membershipGrowth(members, endMs, months = 6) {
+  if (!endMs) return [];
+  const end = new Date(endMs);
+  const buckets = [];
+  for (let i = months - 1; i >= 0; i -= 1) {
+    const start = new Date(end.getFullYear(), end.getMonth() - i, 1);
+    const next = new Date(end.getFullYear(), end.getMonth() - i + 1, 1);
+    buckets.push({ start: start.getTime(), next: next.getTime(), label: start.toLocaleDateString('en-GB', { month: 'short' }) });
+  }
+
+  const joinTimes = members.map((m) => toDate(m.createdAt)?.getTime() ?? -Infinity);
+  return buckets.map((b) => ({
+    label: b.label,
+    added: joinTimes.filter((t) => t >= b.start && t < b.next).length,
+    total: joinTimes.filter((t) => t < b.next).length
+  }));
+}
+
 const isoDate = (value) => {
   const date = toDate(value);
   return date ? date.toISOString().slice(0, 10) : '';
