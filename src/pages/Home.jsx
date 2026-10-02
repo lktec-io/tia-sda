@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
@@ -29,11 +29,12 @@ import {
   swahiliLabels,
   welfarePrograms
 } from '../data/siteContent';
-import { isRecentAnnouncement } from '../utils/announcements';
+import { isAnnouncementLive, isRecentAnnouncement } from '../utils/announcements';
 import NewAnnouncementRibbon from '../components/NewAnnouncementRibbon';
 import '../styles/home.css';
 
 const MAX_ANNOUNCEMENTS = 6;
+const FEED_RECHECK_MS = 60 * 1000;
 
 const CHANNEL_ICONS = {
   instagram: InstagramIcon,
@@ -175,7 +176,8 @@ function HeroIntro({ slides, slide }) {
 }
 
 export default function Home() {
-  const [announcements, setAnnouncements] = useState([]);
+  // Raw public posts + the device clock they were last evaluated against.
+  const [feed, setFeed] = useState({ items: [], now: 0 });
   const [feedStatus, setFeedStatus] = useState('loading'); // loading | ready | error
   const [openAnnouncement, setOpenAnnouncement] = useState(null);
   const closeAnnouncement = useCallback(() => setOpenAnnouncement(null), []);
@@ -187,12 +189,10 @@ export default function Home() {
     // Public feed: only announcements whose visibleTo array includes 'reader'.
     // Firestore is imported on demand so the hero renders without waiting for the SDK.
     import('../lib/publicFeed')
-      .then(({ fetchPublicAnnouncements }) => fetchPublicAnnouncements(MAX_ANNOUNCEMENTS))
+      .then(({ fetchPublicAnnouncements }) => fetchPublicAnnouncements())
       .then((items) => {
         if (!active) return;
-        // Flag posts that went out within the last 48 hours (evaluated once, at load time).
-        const loadedAt = Date.now();
-        setAnnouncements(items.map((item) => ({ ...item, isNew: isRecentAnnouncement(item, loadedAt) })));
+        setFeed({ items, now: Date.now() });
         setFeedStatus('ready');
       })
       .catch((error) => {
@@ -204,6 +204,24 @@ export default function Home() {
       active = false;
     };
   }, []);
+
+  // Re-check the clock every minute so scheduled posts appear and expired posts
+  // disappear on time even if the page stays open.
+  useEffect(() => {
+    const timer = setInterval(() => setFeed((prev) => ({ ...prev, now: Date.now() })), FEED_RECHECK_MS);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Only posts live at the device clock (past scheduledAt, before expiresAt);
+  // "isNew" flags posts that went out within the last 48 hours.
+  const announcements = useMemo(
+    () =>
+      feed.items
+        .filter((item) => isAnnouncementLive(item, feed.now))
+        .slice(0, MAX_ANNOUNCEMENTS)
+        .map((item) => ({ ...item, isNew: isRecentAnnouncement(item, feed.now) })),
+    [feed]
+  );
 
   const [videoFailed, setVideoFailed] = useState(false);
   const youtube = choirChannels.find((channel) => channel.platform === 'youtube');

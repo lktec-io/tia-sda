@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useAuth } from '../context/AuthContext';
 import BrandLogo from '../components/BrandLogo';
 import {
+  CalendarIcon,
   CloseIcon,
   GridIcon,
   HomeIcon,
@@ -24,18 +25,22 @@ const MEMBER_NAV = [
   { to: '/dashboard', label: 'Dashboard Overview', icon: GridIcon, end: true },
   { to: '/dashboard/announcements', label: 'Internal Announcements', icon: MegaphoneIcon },
   { to: '/dashboard/directory', label: 'Flock Directory', sw: 'Orodha ya Washiriki', icon: UsersIcon },
+  { to: '/dashboard/roster', label: 'Worship Roster', sw: 'Ratiba ya Wahudumu', icon: CalendarIcon },
   { to: '/dashboard/profile', label: 'My Profile', icon: UserIcon }
 ];
 
 const LEADER_NAV = [
   { to: '/leader', label: 'Command Center', icon: ShieldIcon, end: true },
-  { to: '/leader/publish', label: 'Publish Announcement', icon: SendIcon }
+  { to: '/leader/publish', label: 'Publish Announcement', icon: SendIcon },
+  { to: '/dashboard/schedule-worship', label: 'Manage Roster', sw: 'Panga Wahudumu', icon: CalendarIcon }
 ];
 
 const PAGE_TITLES = {
   '/dashboard': 'Dashboard Overview',
   '/dashboard/announcements': 'Internal Announcements',
   '/dashboard/directory': 'Flock Directory',
+  '/dashboard/roster': 'Worship Roster',
+  '/dashboard/schedule-worship': 'Manage Worship Roster',
   '/dashboard/profile': 'My Profile',
   '/leader': 'Leadership Command Center',
   '/leader/publish': 'Publish Announcement'

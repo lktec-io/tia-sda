@@ -17,6 +17,8 @@ const Overview = lazyPage(() => import('./pages/portal/Overview'));
 const MemberAnnouncements = lazyPage(() => import('./pages/portal/MemberAnnouncements'));
 const MyProfile = lazyPage(() => import('./pages/portal/MyProfile'));
 const FlockDirectory = lazyPage(() => import('./pages/portal/FlockDirectory'));
+const WorshipRoster = lazyPage(() => import('./pages/portal/WorshipRoster'));
+const WorshipScheduler = lazyPage(() => import('./pages/leader/WorshipScheduler'));
 const CommandCenter = lazyPage(() => import('./pages/leader/CommandCenter'));
 const AnnouncementPublisher = lazyPage(() => import('./pages/leader/AnnouncementPublisher'));
 
@@ -39,6 +41,7 @@ const App = () => {
                 <Route path="/dashboard" element={<Overview />} />
                 <Route path="/dashboard/announcements" element={<MemberAnnouncements />} />
                 <Route path="/dashboard/directory" element={<FlockDirectory />} />
+                <Route path="/dashboard/roster" element={<WorshipRoster />} />
                 <Route path="/dashboard/profile" element={<MyProfile />} />
 
                 {/* Phase 4: Leadership command center */}
@@ -46,6 +49,7 @@ const App = () => {
                   <Route path="/leader" element={<CommandCenter />} />
                   <Route path="/leader/publish" element={<AnnouncementPublisher />} />
                   <Route path="/leader/publish/:announcementId" element={<AnnouncementPublisher />} />
+                  <Route path="/dashboard/schedule-worship" element={<WorshipScheduler />} />
                 </Route>
               </Route>
             </Route>

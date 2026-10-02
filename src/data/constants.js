@@ -121,9 +121,9 @@ export const ministryLabel = (value) =>
 export const ENGAGEMENT_MAX = 31;
 
 export const ENGAGEMENT_METRICS = [
-  { key: 'attendance', label: 'Service Attendance', sw: 'Mahudhurio ya Ibada', color: '#0f2b46' },
-  { key: 'welfare', label: 'Welfare Meetings', sw: 'Vikao vya Ustawi', color: '#d4af37' },
-  { key: 'ministry', label: 'Choir / Ministry', sw: 'Kwaya na Huduma', color: '#5b84b1' }
+  { key: 'attendance', label: 'Church Attendance', sw: 'Mahudhurio ya Ibada', color: '#0f2b46' },
+  { key: 'welfare', label: 'Welfare Sessions', sw: 'Vikao vya Ustawi', color: '#d4af37' },
+  { key: 'ministry', label: 'Ministries / Choir', sw: 'Idara na Huduma', color: '#5b84b1' }
 ];
 
 // ---------------------------------------------------------------- academics

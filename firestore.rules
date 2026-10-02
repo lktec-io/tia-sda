@@ -208,6 +208,120 @@ service cloud.firestore {
         && d.updatedAt == request.time;
     }
 
+    // ------------------------------------------ worship roster: validation
+    // worshipSchedules/{YYYY-MM-DD}: one duty roster per Sabbath (mirror of src/lib/worship.js).
+    function isDuty(section, key) {
+      return isShortString(section.get(key, ''), 120);
+    }
+
+    function isSabbathId(id) {
+      let parts = id.split('-');
+      return id.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])
+      allow get: if isSelf(uid) || isLeader();
+      allow list: if isLeader();
+
+      allow create: if isSelf(uid) && isValidRegistration(uid);
+
+      allow update: if (isSelf(uid) && isValidSelfUpdate())
+                    || (isLeader() && isValidLeaderUpdate(uid));
+
+      // Leaders may remove members from the registry — never themselves or another leader.
+      allow delete: if isLeader()
+                    && !isSelf(uid)
+                    && resource.data.role != 'leader';
+    }
+
+    // ======================================================== announcements
+    match /announcements/{announcementId} {
+      allow read: if 'reader' in resource.data.visibleTo
+                  || isLeader()
+                  || (hasProfile() && myProfile().role in resource.data.visibleTo);
+
+      allow create: if isLeader()
+                    && isValidAnnouncement()
+                    && request.resource.data.authorId == request.auth.uid
+                    && request.resource.data.publishedAt == request.time;
+
+      // Edit Mode: original author/date are preserved; edits are stamped with the editor.
+      allow update: if isLeader()
+                    && isValidAnnouncement()
+                    && !changedKeys().hasAny(['authorId', 'authorName', 'publishedAt'])
+                    && (!('updatedBy' in changedKeys()) || request.resource.data.updatedBy == request.auth.uid)
+                    && (!('updatedAt' in changedKeys()) || request.resource.data.updatedAt == request.time);
+
+      allow delete: if isLeader();
+    }
+
+    // ==================================================== flock directory
+    match /directory/{uid} {
+      // Any registered profile may browse; entries hold no sensitive fields.
+      allow read: if hasProfile();
+      allow create, update: if (isSelf(uid) || isLeader()) && isValidDirectoryEntry(uid);
+      allow delete: if isSelf(uid) || isLeader();
+    }
+
+    // ================================================ engagement analytics
+    match /users/{uid}/engagement/{monthId} {
+      allow read: if isSelf(uid) || isLeader();
+      allow create, update: if isLeader()
+                            && monthId.matches('^[0-9]{4}-(0[1-9]|1[0-2])
+  }
+}
+)
+                            && isValidEngagement(monthId);
+      allow delete: if isLeader();
+    }
+
+    // ====================================================== worship roster
+    match /worshipSchedules/{sabatoDate} {
+      // Every registered account can read the roster; only leaders manage it.
+      allow read: if hasProfile();
+
+      allow create: if isLeader()
+                    && isValidWorshipSchedule(sabatoDate)
+                    && request.resource.data.createdBy == request.auth.uid
+                    && request.resource.data.createdAt == request.time;
+
+      allow update: if isLeader()
+                    && isValidWorshipSchedule(sabatoDate)
+                    && !changedKeys().hasAny(['sabatoDate', 'createdBy', 'createdByName', 'createdAt'])
+                    && request.resource.data.updatedBy == request.auth.uid
+                    && request.resource.data.updatedAt == request.time;
+
+      allow delete: if isLeader();
+    }
+
+    // Everything else is closed by default.
+  }
+}
+)
+        // timestamp.dayOfWeek(): 1 = Monday ... 6 = Saturday, 7 = Sunday.
+        && timestamp.date(int(parts[0]), int(parts[1]), int(parts[2])).dayOfWeek() == 6;
+    }
+
+    function isValidWorshipSchedule(id) {
+      let d = request.resource.data;
+      return d.keys().hasOnly([
+          'sabatoDate', 'midweek', 'sabbathSchool', 'divineService',
+          'createdBy', 'createdByName', 'createdAt', 'updatedBy', 'updatedAt'
+        ])
+        && d.keys().hasAll(['sabatoDate', 'midweek', 'sabbathSchool', 'divineService', 'createdBy', 'createdAt'])
+        && d.sabatoDate == id
+        && isSabbathId(id)
+        && d.midweek is map
+        && d.midweek.keys().hasOnly(['wednesdayPrayer', 'fridayVespers'])
+        && isDuty(d.midweek, 'wednesdayPrayer') && isDuty(d.midweek, 'fridayVespers')
+        && d.sabbathSchool is map
+        && d.sabbathSchool.keys().hasOnly(['chair', 'memoryVerse', 'missionStory', 'lessonStudy'])
+        && isDuty(d.sabbathSchool, 'chair') && isDuty(d.sabbathSchool, 'memoryVerse')
+        && isDuty(d.sabbathSchool, 'missionStory') && isDuty(d.sabbathSchool, 'lessonStudy')
+        && d.divineService is map
+        && d.divineService.keys().hasOnly(['chair', 'mainScripture', 'preacher', 'offering'])
+        && isDuty(d.divineService, 'chair') && isDuty(d.divineService, 'mainScripture')
+        && isDuty(d.divineService, 'preacher') && isDuty(d.divineService, 'offering')
+        && isShortString(d.get('createdByName', ''), 120);
+    }
+
     // ================================================================ users
     match /users/{uid} {
       allow get: if isSelf(uid) || isLeader();

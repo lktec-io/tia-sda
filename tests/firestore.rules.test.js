@@ -532,3 +532,62 @@ describe('Engagement analytics (users/{uid}/engagement/{YYYY-MM})', () => {
     await assertFails(setDoc(doc(leader, 'users/member1/engagement/2026-10'), record('2026-10', { phone: '07' })));
   });
 });
+
+describe('Worship duty roster (worshipSchedules/{YYYY-MM-DD})', () => {
+  const SABBATH = '2026-10-03'; // a Saturday
+  const roster = (sabatoDate, extra = {}) => ({
+    sabatoDate,
+    midweek: { wednesdayPrayer: 'Neema J.', fridayVespers: 'Daudi K.' },
+    sabbathSchool: { chair: 'Rehema M.', memoryVerse: 'Zaburi 23:1', missionStory: 'Peter L.', lessonStudy: 'Asha N.' },
+    divineService: { chair: 'John P.', mainScripture: 'Yohana 3:16', preacher: 'Pr. Mwakalinga', offering: 'Grace T.' },
+    createdBy: 'leader1',
+    createdByName: 'Leader Test',
+    createdAt: serverTimestamp(),
+    ...extra
+  });
+
+  test('leader can publish a Sabbath roster; members and associates can read it', async () => {
+    await assertSucceeds(setDoc(doc(as('leader1'), `worshipSchedules/${SABBATH}`), roster(SABBATH)));
+    await assertSucceeds(getDocs(query(collection(as('member1'), 'worshipSchedules'))));
+    await assertSucceeds(getDoc(doc(as('assoc1'), `worshipSchedules/${SABBATH}`)));
+  });
+
+  test('guests cannot read the roster; members cannot write it', async () => {
+    await assertFails(getDocs(collection(asGuest(), 'worshipSchedules')));
+    await assertFails(setDoc(doc(as('member1'), `worshipSchedules/${SABBATH}`), roster(SABBATH, { createdBy: 'member1' })));
+  });
+
+  test('the document id must be a Saturday matching sabatoDate', async () => {
+    await assertFails(setDoc(doc(as('leader1'), 'worshipSchedules/2026-10-04'), roster('2026-10-04'))); // Sunday
+    await assertFails(setDoc(doc(as('leader1'), `worshipSchedules/${SABBATH}`), roster('2026-10-10')));
+  });
+
+  test('unknown duty keys and over-long values are rejected', async () => {
+    await assertFails(
+      setDoc(doc(as('leader1'), `worshipSchedules/${SABBATH}`), roster(SABBATH, { midweek: { wednesdayPrayer: 'A', extra: 'B' } }))
+    );
+    await assertFails(
+      setDoc(
+        doc(as('leader1'), `worshipSchedules/${SABBATH}`),
+        roster(SABBATH, { divineService: { chair: 'x'.repeat(121), mainScripture: '', preacher: '', offering: '' } })
+      )
+    );
+  });
+
+  test('leader edits are stamped; author and date are immutable; leader can delete', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `worshipSchedules/${SABBATH}`), roster(SABBATH, { createdAt: new Date() }));
+    });
+    const ref = doc(as('leader2'), `worshipSchedules/${SABBATH}`);
+    await assertSucceeds(
+      updateDoc(ref, {
+        divineService: { chair: 'John P.', mainScripture: 'Yohana 3:16', preacher: 'Pr. Kibona', offering: 'Grace T.' },
+        updatedBy: 'leader2',
+        updatedAt: serverTimestamp()
+      })
+    );
+    await assertFails(updateDoc(ref, { createdBy: 'leader2', updatedBy: 'leader2', updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(ref, { updatedBy: 'leader1', updatedAt: serverTimestamp() }));
+    await assertSucceeds(deleteDoc(ref));
+  });
+});

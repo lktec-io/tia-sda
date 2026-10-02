@@ -126,7 +126,7 @@ export default function EngagementEditor({ memberId, memberName }) {
         {note.text ||
           (stored?.updatedAt
             ? `${month} last recorded ${formatLongDate(stored.updatedAt)}.`
-            : 'Counts per month (0–31): services attended, welfare meetings, choir/ministry sessions.')}
+            : 'Counts per month (0–31): church attendance, welfare sessions, ministries/choir.')}
       </p>
     </div>
   );
