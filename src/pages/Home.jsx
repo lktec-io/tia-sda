@@ -19,7 +19,6 @@ import {
 } from '../components/Icons';
 import {
   HERO_SLIDE_INTERVAL_MS,
-  worshipWords,
   album,
   choirChannels,
   heroSlides,
@@ -112,16 +111,17 @@ function useHeroSlideshow(slides, interval) {
 function HeroSlideshow({ slides, interval, slide, animated }) {
   return (
     <div className="hero-slides" style={{ '--slide-duration': `${Math.round(interval / 0.85)}ms` }}>
-      {slides.map((src, index) => {
+      {slides.map((item, index) => {
         let state = '';
         if (index === slide.active) state = animated ? 'is-active' : 'is-static';
         else if (animated && index === slide.previous) state = 'is-leaving';
 
         return (
           <div
-            key={`${src}:${slide.starts[index]}`}
+            // Index (not image) in the key: the same photo may back several phrases.
+            key={`${index}:${slide.starts[index]}`}
             className={`hero-slide ${state}`.trim()}
-            style={{ backgroundImage: `url('${src}')` }}
+            style={{ backgroundImage: `url('${item.image}')` }}
           />
         );
       })}
@@ -130,26 +130,22 @@ function HeroSlideshow({ slides, interval, slide, animated }) {
 }
 
 /**
- * Cinematic worship words, bound to the hero slideshow clock: every slide change
- * (`tick`) brings in the next phrase. All phrases are stacked in one grid cell; the
- * active one transitions up into place (translateY 20px → 0, opacity 0 → 1, 0.7 s)
- * while the previous one lifts away. There are more phrases than photos, so they
- * advance per transition rather than per image.
+ * Scripture phrase locked to the background: it reads `slide.active` / `slide.previous`,
+ * the SAME index the photos use, so every image change swaps the phrase in the same
+ * render. All phrases share one grid cell; the active one transitions up into place
+ * (translateY 15px → 0 with a 0.6 s opacity cross-fade) while the previous one lifts away.
  */
-function WorshipWords({ words, tick }) {
-  const active = tick % words.length;
-  const previous = tick > 0 ? (tick - 1) % words.length : null;
-
+function WorshipWords({ slides, slide }) {
   return (
-    <div className="worship-words">
-      {words.map((word, index) => {
-        const state = index === active ? 'is-active' : index === previous ? 'is-leaving' : '';
+    <div className="worship-words" aria-live="off">
+      {slides.map((item, index) => {
+        const state = index === slide.active ? 'is-active' : index === slide.previous ? 'is-leaving' : '';
         return (
-          <p key={word.en} className={`worship-word ${state}`.trim()} aria-hidden={index !== active}>
-            <span className="worship-word-en">{word.en}</span>
+          <p key={index} className={`worship-word ${state}`.trim()} aria-hidden={index !== slide.active}>
+            <span className="worship-word-en">{item.en}</span>
             <span className="worship-word-sw" lang="sw">
-              <em>{word.sw}</em>
-              {word.ref && <span className="worship-word-ref"> · {word.ref}</span>}
+              <em>{item.sw}</em>
+              {item.ref && <span className="worship-word-ref"> · {item.ref}</span>}
             </span>
           </p>
         );
@@ -224,6 +220,8 @@ export default function Home() {
             <h1>
               TUCASA <span>TIA Mbeya</span>
             </h1>
+            {/* Scripture phrase — same index as the background photo. */}
+            <WorshipWords slides={heroSlides} slide={slide} />
             <p className="hero-lead">
               A home for worship, fellowship and service at the Tanzania Institute of Accountancy,
               Mbeya. Grow in faith, sing with purpose and serve alongside fellow students.
@@ -269,10 +267,6 @@ export default function Home() {
               Service guidelines <ArrowRightIcon width={16} height={16} />
             </a>
           </aside>
-        </div>
-
-        <div className="container worship-band">
-          <WorshipWords words={worshipWords} tick={slide.tick} />
         </div>
       </section>
 

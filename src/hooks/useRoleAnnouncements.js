@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import { toMillis } from '../utils/format';
 import { logFirestoreError } from '../utils/logFirestoreError';
 
+const RECENT_WINDOW_MS = 48 * 60 * 60 * 1000; // "new post" alert window
+
 /**
  * Live announcement feed for the signed-in user.
  * - member / associate / reader: only posts whose visibleTo array contains their role.
@@ -58,7 +60,10 @@ export default function useRoleAnnouncements() {
                 ...docSnap.data({ serverTimestamps: 'estimate' })
               }))
               .sort((a, b) => toMillis(b.publishedAt) - toMillis(a.publishedAt));
-            setState({ items, status: 'ready', error: null, key });
+            // Posts from the last 48 h (evaluated when data arrives, not during render).
+            const now = Date.now();
+            const recentCount = items.filter((item) => now - toMillis(item.publishedAt) <= RECENT_WINDOW_MS).length;
+            setState({ items, recentCount, status: 'ready', error: null, key });
           } catch (error) {
             fail(error);
           }
@@ -76,5 +81,11 @@ export default function useRoleAnnouncements() {
 
   const retry = useCallback(() => setReloadKey((n) => n + 1), []);
 
-  return { announcements: state.items, status: state.status, error: state.error, retry };
+  return {
+    announcements: state.items,
+    recentCount: state.recentCount ?? 0,
+    status: state.status,
+    error: state.error,
+    retry
+  };
 }

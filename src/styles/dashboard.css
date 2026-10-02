@@ -110,7 +110,65 @@
   font-size: 14px;
   font-weight: 700;
   color: #cbd5e1;
-  transition: background var(--t-fast), color var(--t-fast);
+  transition: all 0.3s ease-out;
+}
+
+.side-link:hover {
+  transform: translateX(3px);
+}
+
+/* Crimson "new announcement" indicator (last 48 h) with a flashing halo */
+.red-alert-pulse {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: #dc143c;
+  box-shadow: 0 0 8px rgba(220, 20, 60, 0.8);
+  animation: crimsonFlash 1.2s ease-in-out infinite;
+}
+
+.red-alert-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #dc143c;
+  animation: crimsonRing 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes crimsonFlash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@keyframes crimsonRing {
+  0% { transform: scale(1); opacity: 0.75; }
+  100% { transform: scale(3); opacity: 0; }
+}
+
+/* Inline next to a heading (e.g. the Overview quick card) */
+.quick-text strong .red-alert-pulse {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+/* Corner badge on the mobile menu button */
+.red-alert-corner {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .red-alert-pulse,
+  .red-alert-pulse::after {
+    animation: none;
+  }
 }
 
 .side-link svg {
@@ -187,8 +245,11 @@
 }
 
 .topbar-menu {
+  position: relative;
   display: none;
   place-items: center;
+  overflow: visible;
+  transition: all 0.3s ease-out;
   width: 40px;
   height: 40px;
   flex-shrink: 0;
@@ -1018,6 +1079,336 @@
   }
 }
 
+/* ---------- Luxury member welcome banner ---------- */
+.welcome-luxe {
+  padding: 30px 32px;
+  background:
+    radial-gradient(circle at 92% 0%, rgba(212, 175, 55, 0.38) 0%, transparent 42%),
+    radial-gradient(circle at 0% 100%, rgba(59, 130, 246, 0.25) 0%, transparent 45%),
+    linear-gradient(135deg, #0b2138 0%, #0f2b46 50%, #1a446c 100%);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+}
+
+.welcome-identity {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+
+.welcome-identity .avatar {
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.18);
+}
+
+.welcome-sw {
+  display: block;
+  margin: -4px 0 6px;
+  font-size: 14px;
+  font-style: italic;
+  font-weight: 600;
+  color: var(--gold-light);
+}
+
+/* ---------- Executive Command Dashboard (leaders) ---------- */
+.exec-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 30px 32px;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 85% 0%, rgba(212, 175, 55, 0.35) 0%, transparent 45%),
+    linear-gradient(135deg, #050f1b 0%, #0b2138 55%, #0f2b46 100%);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: var(--white);
+  box-shadow: var(--shadow-lg);
+}
+
+.exec-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.exec-hero h2 {
+  color: var(--white);
+  font-size: clamp(24px, 3.4vw, 32px);
+  margin: 6px 0;
+}
+
+.exec-hero p {
+  max-width: 560px;
+  color: #cbd5e1;
+}
+
+.exec-hero p em {
+  color: var(--gold-light);
+}
+
+.exec-hero-rate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.exec-hero-rate strong {
+  font-size: 40px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--gold-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.exec-hero-rate span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.exec-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+/* High-contrast metric cards: deep navy with a coloured top accent */
+.exec-metric {
+  --accent: var(--gold);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 22px;
+  border-radius: 10px;
+  background: #0b1d30;
+  color: var(--white);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.exec-metric::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: var(--accent);
+}
+
+.exec-metric-flock { --accent: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.exec-metric-cash { --accent: linear-gradient(90deg, #10b981, #d4af37); }
+.exec-metric-posts { --accent: linear-gradient(90deg, #d4af37, #e6c65c); }
+
+.exec-metric-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--gold-light);
+  margin-bottom: 6px;
+}
+
+.exec-metric-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.exec-metric-value {
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.exec-metric-hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.exec-meter {
+  height: 6px;
+  margin: 4px 0 2px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.exec-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #10b981, #d4af37);
+  transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.exec-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+/* Quick-action blocks (links and the download button share this look) */
+.exec-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--church-blue);
+  font: inherit;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: all 0.3s ease-out;
+}
+
+.exec-action:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: rgba(212, 175, 55, 0.55);
+  box-shadow: var(--shadow-md);
+}
+
+.exec-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.exec-action-primary {
+  background: var(--grad-brand);
+  border-color: transparent;
+  color: var(--white);
+}
+
+.exec-action-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--surface-tint);
+  color: var(--sapphire);
+}
+
+.exec-action-primary .exec-action-icon {
+  background: var(--grad-gold);
+  color: var(--church-blue);
+}
+
+.exec-action-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.exec-action-text strong {
+  font-size: 15px;
+}
+
+.exec-action-text small {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.exec-action-primary .exec-action-text small {
+  color: #cbd5e1;
+}
+
+.exec-action-arrow {
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: transform 0.3s ease-out;
+}
+
+.exec-action:hover .exec-action-arrow {
+  transform: translateX(3px);
+}
+
+.exec-posts {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.exec-posts li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.exec-post-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.exec-post-info strong {
+  color: var(--church-blue);
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.exec-post-info small {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 1100px) {
+  .exec-metrics,
+  .exec-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .exec-metric-cash {
+    order: -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .exec-hero,
+  .welcome-luxe {
+    padding: 22px 20px;
+  }
+
+  .exec-hero-rate {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .welcome-identity {
+    align-items: flex-start;
+  }
+}
+
 /* ---------- 5. My Profile ---------- */
 .profile-grid {
   display: grid;
@@ -1143,6 +1534,35 @@
 }
 
 /* ---------- 7. Responsive ---------- */
+/* Small desktops (961–1200px): narrower sidebar and compact top bar so the page
+   title, user block and logout never overlap or force a horizontal scroll. */
+@media (min-width: 961px) and (max-width: 1200px) {
+  .portal {
+    --sidebar-width: 236px;
+  }
+
+  .portal-main {
+    padding: 24px;
+  }
+
+  .topbar {
+    padding: 0 24px;
+  }
+
+  .topbar-user-text strong {
+    max-width: 140px;
+  }
+
+  .btn-logout span {
+    display: none;
+  }
+
+  .btn-logout {
+    width: 40px;
+    padding: 0;
+  }
+}
+
 @media (max-width: 1100px) {
   .overview-grid,
   .profile-grid {
@@ -1155,14 +1575,16 @@
     grid-template-columns: 1fr;
   }
 
-  /* Off-canvas drawer: always rendered and positioned, only its transform animates,
-     so opening/closing never causes a display or layout jump. `visibility` flips
-     after the slide-out finishes, keeping hidden links out of the tab order. */
+  /* Off-canvas drawer: always rendered and positioned; transform/shadow/visibility
+     animate together with `transition: all 0.3s ease-out`. `visibility` is
+     interpolated natively — visible for the whole slide-in, hidden only once the
+     slide-out completes — so closed links leave the tab order without a jump. */
   .sidebar {
     position: fixed;
     top: 0;
     left: 0;
     bottom: 0;
+    z-index: 40;
     width: 280px;
     max-width: 85vw;
     overflow-x: hidden;
@@ -1170,20 +1592,13 @@
     visibility: hidden;
     box-shadow: none;
     will-change: transform;
-    transition:
-      transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
-      box-shadow 0.4s cubic-bezier(0.25, 1, 0.5, 1),
-      visibility 0s linear 0.4s;
+    transition: all 0.3s ease-out;
   }
 
   .drawer-open .sidebar {
     transform: translateX(0);
     visibility: visible;
     box-shadow: 24px 0 48px rgba(0, 0, 0, 0.3);
-    transition:
-      transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
-      box-shadow 0.4s cubic-bezier(0.25, 1, 0.5, 1),
-      visibility 0s linear 0s;
   }
 
   /* Labels scale down fluidly on compact phones and truncate instead of wrapping. */
@@ -1211,9 +1626,7 @@
   .sidebar-nav li {
     opacity: 0;
     transform: translateX(-12px);
-    transition:
-      opacity 0.3s cubic-bezier(0.25, 1, 0.5, 1),
-      transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+    transition: all 0.3s ease-out;
   }
 
   .drawer-open .sidebar-nav li {
@@ -1238,7 +1651,7 @@
     pointer-events: none;
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
-    transition: opacity 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+    transition: all 0.3s ease-out;
   }
 
   .drawer-open .sidebar-scrim {

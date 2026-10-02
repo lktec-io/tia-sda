@@ -14,6 +14,7 @@ import {
   UserIcon
 } from '../components/Icons';
 import MemberAvatar from '../components/MemberAvatar';
+import useRoleAnnouncements from '../hooks/useRoleAnnouncements';
 import { formatRole } from '../data/constants';
 import '../styles/dashboard.css';
 
@@ -36,7 +37,7 @@ const PAGE_TITLES = {
   '/leader/publish': 'Publish Announcement'
 };
 
-function SidebarLink({ item, onNavigate }) {
+function SidebarLink({ item, onNavigate, alertCount = 0 }) {
   const Icon = item.icon;
   return (
     <li>
@@ -48,6 +49,13 @@ function SidebarLink({ item, onNavigate }) {
       >
         <Icon width={18} height={18} />
         <span>{item.label}</span>
+        {alertCount > 0 && (
+          <span
+            className="red-alert-pulse"
+            role="status"
+            aria-label={`${alertCount} new announcement${alertCount === 1 ? '' : 's'} in the last 48 hours`}
+          />
+        )}
       </NavLink>
     </li>
   );
@@ -63,6 +71,8 @@ export default function Dashboard() {
   const { pathname } = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  // Posts published in the last 48 h for this user's audience → crimson nav alert.
+  const { recentCount } = useRoleAnnouncements();
 
   const fullName = userProfile?.fullName || currentUser?.email || 'Member';
   const statusLabel = `Active ${formatRole(userProfile)}`;
@@ -112,7 +122,12 @@ export default function Dashboard() {
           <p className="sidebar-label">Workspace</p>
           <ul>
             {MEMBER_NAV.map((item) => (
-              <SidebarLink key={item.to} item={item} onNavigate={closeDrawer} />
+              <SidebarLink
+                key={item.to}
+                item={item}
+                onNavigate={closeDrawer}
+                alertCount={item.to === '/dashboard/announcements' ? recentCount : 0}
+              />
             ))}
           </ul>
 
@@ -156,6 +171,8 @@ export default function Dashboard() {
               aria-expanded={drawerOpen}
             >
               <MenuIcon />
+              {/* On phones the sidebar is hidden, so surface the new-post alert here too. */}
+              {recentCount > 0 && <span className="red-alert-pulse red-alert-corner" aria-hidden="true" />}
             </button>
             <h1 className="topbar-title">{pageTitle}</h1>
           </div>

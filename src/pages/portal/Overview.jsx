@@ -4,6 +4,8 @@ import useRoleAnnouncements from '../../hooks/useRoleAnnouncements';
 import AnnouncementPost from '../../components/AnnouncementPost';
 import Alert from '../../components/Alert';
 import FeeTracker from '../../components/FeeTracker';
+import MemberAvatar from '../../components/MemberAvatar';
+import ExecutiveOverview from './ExecutiveOverview';
 import {
   ArrowRightIcon,
   BookIcon,
@@ -35,10 +37,19 @@ const ROLE_SUMMARY = {
   leader: 'You serve on the TUCASA TIA Mbeya leadership team. Manage members and publish updates from the Command Center.'
 };
 
+/**
+ * /dashboard: leaders get the Executive Command Dashboard; everyone else gets the
+ * personal member overview. (Two components so neither calls hooks conditionally.)
+ */
 export default function Overview() {
+  const { isLeader } = useAuth();
+  return isLeader ? <ExecutiveOverview /> : <MemberOverview />;
+}
+
+function MemberOverview() {
   const { userProfile, feedRole, isLeader, feeStatus } = useAuth();
   const fee = feeStatusInfo(feeStatus);
-  const { announcements, status } = useRoleAnnouncements();
+  const { announcements, recentCount, status } = useRoleAnnouncements();
 
   const firstName = (userProfile?.fullName || '').split(' ')[0] || 'friend';
   const latest = announcements.slice(0, 3);
@@ -60,11 +71,15 @@ export default function Overview() {
 
   return (
     <div className="view">
-      <section className="welcome-banner">
-        <div>
-          <span className="welcome-eyebrow">Member Workspace</span>
-          <h2>Welcome back, {firstName}.</h2>
-          <p>{ROLE_SUMMARY[isLeader ? 'leader' : feedRole] || ROLE_SUMMARY.member}</p>
+      <section className="welcome-banner welcome-luxe">
+        <div className="welcome-identity">
+          <MemberAvatar name={userProfile?.fullName || ''} photoUrl={userProfile?.profilePictureUrl} size="lg" showStatus />
+          <div>
+            <span className="welcome-eyebrow">Member Workspace</span>
+            <h2>Welcome back, {firstName}.</h2>
+            <span className="welcome-sw" lang="sw">Karibu tena nyumbani</span>
+            <p>{ROLE_SUMMARY[isLeader ? 'leader' : feedRole] || ROLE_SUMMARY.member}</p>
+          </div>
         </div>
         <div className="welcome-badges">
           <span className="badge badge-gold">{formatRole(userProfile)}</span>
@@ -80,7 +95,10 @@ export default function Overview() {
         <Link to="/dashboard/announcements" className="quick-card">
           <span className="quick-icon"><MegaphoneIcon /></span>
           <span className="quick-text">
-            <strong>Internal Announcements</strong>
+            <strong>
+              Internal Announcements
+              {recentCount > 0 && <span className="red-alert-pulse" aria-label={`${recentCount} new in the last 48 hours`} />}
+            </strong>
             <small>
               {status === 'ready' ? `${announcements.length} post${announcements.length === 1 ? '' : 's'} for you` : 'Live fellowship updates'}
             </small>

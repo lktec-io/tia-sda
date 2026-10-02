@@ -219,6 +219,30 @@ h1, h2, h3, h4 {
 .btn:hover { transform: translateY(-1px); }
 .btn:active { transform: translateY(0); }
 
+/* ---------- Button geometry & overflow rule (applies app-wide) ----------
+   Every button-like control: 4–10px corner radius (the scale used is 4px for
+   buttons, up to 10px for large controls — never round pills, never 0px), and it
+   can never be wider than its container: long labels truncate with "…".
+   Wrapped in :where() so specificity is zero — component classes that need a
+   different display (grid icon buttons, stretched card titles) still win. */
+:where(button, .btn, .icon-btn, .btn-logout, .btn-link, .upload-btn, .submit-btn) {
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: var(--radius);
+}
+
+/* Ellipsis needs the label in its own shrinkable box inside the flex button. */
+:where(.btn, .icon-btn, .btn-logout) > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .btn:disabled {
   cursor: not-allowed;
   opacity: 0.65;

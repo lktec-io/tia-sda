@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { useCallback, useMemo, useState } from 'react';
+import { deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import Alert from '../../components/Alert';
@@ -24,62 +24,19 @@ import {
   FEE_ANNUAL_TZS,
   FEE_PER_SEMESTER_TZS,
   FEE_STATUSES,
-  canonicalArea,
   coursesForLevel,
   feeStatusInfo,
   formatAcademicLevel,
   formatRole,
   formatTZS,
-  formatYear,
-  getFeeStatus,
-  getAcademicLevel,
-  getCourseCode,
-  getCourseName,
-  getHouseNumber
+  formatYear
 } from '../../data/constants';
-import { buildCsv, downloadCsv } from '../../utils/csv';
-import { formatDate, toDate, toMillis } from '../../utils/format';
-import { logFirestoreError } from '../../utils/logFirestoreError';
+import useRegistry from '../../hooks/useRegistry';
+import { computeLedger, exportRegistryCsv, getRegistryError } from '../../lib/registry';
+import { formatDate, toMillis } from '../../utils/format';
 import '../../styles/leader.css';
 
-const getDbError = (error) => {
-  switch (error?.code) {
-    case 'permission-denied':
-      return 'Permission denied by the database rules. If this is a leader account, the latest firestore.rules may not be deployed yet — see the browser console for details.';
-    case 'unavailable':
-      return 'Connection to the database was lost. Changes will sync once you are back online.';
-    case 'not-found':
-      return 'That member no longer exists in the registry.';
-    default:
-      return 'A database error occurred. Please try again.';
-  }
-};
-
-const isoDate = (value) => {
-  const date = toDate(value);
-  return date ? date.toISOString().slice(0, 10) : '';
-};
-
-// Columns for "Export Registry to CSV" — every field collected at registration.
-// Rows are pre-enriched with academicLevel / courseCode / courseName / area (see `registry`).
-const CSV_COLUMNS = [
-  { header: 'Full Name', value: (u) => u.fullName },
-  { header: 'Email', value: (u) => u.email },
-  { header: 'Phone', value: (u) => u.phone },
-  { header: 'Access Level', value: (u) => formatRole(u) },
-  { header: 'Membership Fee Status', value: (u) => feeStatusInfo(u.feeStatus).label },
-  { header: 'Fee Paid (TZS)', value: (u) => feeStatusInfo(u.feeStatus).amount },
-  { header: 'Academic Level', value: (u) => (u.academicLevel ? formatAcademicLevel(u.academicLevel, { long: true }) : '') },
-  { header: 'Course Code', value: (u) => u.courseCode },
-  { header: 'Course Name', value: (u) => u.courseName },
-  { header: 'Year of Study', value: (u) => formatYear(u.academicDetails?.yearOfStudy) },
-  { header: 'Residential Area', value: (u) => u.area },
-  { header: 'House Number / Hostel Block', value: (u) => u.houseNumber },
-  { header: 'Ministry Wing', value: (u) => u.ministryWing || 'None' },
-  { header: 'Registered On', value: (u) => isoDate(u.createdAt) },
-  { header: 'Profile Picture URL', value: (u) => u.profilePictureUrl },
-  { header: 'Member ID', value: (u) => u.id }
-];
+const getDbError = getRegistryError;
 
 function MetricCard({ icon, label, value, hint, tone }) {
   return (
@@ -156,11 +113,10 @@ function TreasuryInsights({ ledger, ready }) {
 }
 
 export default function CommandCenter() {
-  const { currentUser, userRole } = useAuth();
-  const [users, setUsers] = useState([]);
-  const [status, setStatus] = useState('loading'); // loading | ready | error
-  const [loadError, setLoadError] = useState(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const { currentUser } = useAuth();
+  // Live, enriched registry shared with the Executive Overview (see hooks/useRegistry).
+  const { members: registry, status, error: loadError, retry: retryRegistry } = useRegistry();
+  const users = registry;
 
   const [search, setSearch] = useState('');
   const [feeFilter, setFeeFilter] = useState('all');
@@ -175,76 +131,8 @@ export default function CommandCenter() {
   const [drawerId, setDrawerId] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  // Live registry — a plain listener on the whole `users` collection (no filters),
-  // so metrics and table update the moment anything changes. Failures are logged and
-  // shown inline; the dashboard layout always stays rendered.
-  useEffect(() => {
-    const debug = { query: 'users (full registry)', uid: currentUser?.uid ?? null, role: userRole };
-
-    const fail = (error) => {
-      logFirestoreError('Member registry', error, debug);
-      setLoadError(error);
-      setStatus('error');
-    };
-
-    let unsubscribe = () => {};
-
-    try {
-      unsubscribe = onSnapshot(
-        collection(db, 'users'),
-        (snapshot) => {
-          try {
-            setUsers(
-              snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data({ serverTimestamps: 'estimate' }) }))
-            );
-            setLoadError(null);
-            setStatus('ready');
-          } catch (error) {
-            fail(error);
-          }
-        },
-        fail
-      );
-    } catch (error) {
-      // Synchronous setup failure — report asynchronously so the effect body never sets state.
-      queueMicrotask(() => fail(error));
-    }
-
-    return () => unsubscribe();
-  }, [reloadKey, currentUser?.uid, userRole]);
-
-  // Re-subscribe after an error (e.g. once corrected rules have been deployed).
-  const retryRegistry = () => {
-    setLoadError(null);
-    setStatus('loading');
-    setReloadKey((n) => n + 1);
-  };
-
-  // Normalised view of every profile (legacy courses/areas mapped onto official values)
-  // so filters, table and CSV all agree.
-  const registry = useMemo(
-    () =>
-      users.map((u) => ({
-        ...u,
-        academicLevel: getAcademicLevel(u.academicDetails),
-        courseCode: getCourseCode(u.academicDetails),
-        courseName: getCourseName(u.academicDetails),
-        area: canonicalArea(u.location?.residentialArea || ''),
-        houseNumber: getHouseNumber(u.location),
-        feeStatus: getFeeStatus(u)
-      })),
-    [users]
-  );
-
   // Live treasury ledger from the whole registry.
-  const ledger = useMemo(() => {
-    const fullyPaid = registry.filter((u) => u.feeStatus === 'fully_paid').length;
-    const semesterPaid = registry.filter((u) => u.feeStatus === 'semester1_paid').length;
-    const unpaid = registry.length - fullyPaid - semesterPaid;
-    const revenue = semesterPaid * FEE_PER_SEMESTER_TZS + fullyPaid * FEE_ANNUAL_TZS;
-    const potential = registry.length * FEE_ANNUAL_TZS;
-    return { total: registry.length, fullyPaid, semesterPaid, unpaid, revenue, potential, outstanding: potential - revenue };
-  }, [registry]);
+  const ledger = useMemo(() => computeLedger(registry), [registry]);
 
   // Course filter follows the selected level; "All levels" shows every course grouped by level.
   const courseGroups = useMemo(
@@ -380,10 +268,7 @@ export default function CommandCenter() {
 
   // ---------- CSV export ----------
   const exportCsv = () => {
-    if (filteredUsers.length === 0) return;
-    const csv = buildCsv(filteredUsers, CSV_COLUMNS);
-    const stamp = new Date().toISOString().slice(0, 10);
-    downloadCsv(`tucasa-tia-mbeya-registry-${stamp}.csv`, csv);
+    if (exportRegistryCsv(filteredUsers) === 0) return;
     setMessage({
       type: 'success',
       text: `Exported ${filteredUsers.length} member${filteredUsers.length === 1 ? '' : 's'} to CSV${filtersActive ? ' (current filters applied)' : ''}.`
