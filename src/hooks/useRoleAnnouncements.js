@@ -2,10 +2,21 @@ import { useCallback, useEffect, useState } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { toMillis } from '../utils/format';
 import { logFirestoreError } from '../utils/logFirestoreError';
+import { effectiveMillis, isAnnouncementLive, isRecentAnnouncement } from '../utils/announcements';
 
-const RECENT_WINDOW_MS = 48 * 60 * 60 * 1000; // "new post" alert window
+const RECHECK_MS = 60 * 1000; // re-evaluate schedule/expiry once a minute
+
+/**
+ * Derives what the user sees from the raw snapshot at time `now`:
+ * leaders see every post (incl. scheduled/expired, flagged in the UI);
+ * everyone else only sees posts that are live (past scheduledAt, before expiresAt).
+ */
+function derive(raw, isLeaderFeed, now) {
+  const items = isLeaderFeed ? raw : raw.filter((item) => isAnnouncementLive(item, now));
+  const recentCount = items.filter((item) => isRecentAnnouncement(item, now)).length;
+  return { items, recentCount, now };
+}
 
 /**
  * Live announcement feed for the signed-in user.
@@ -21,13 +32,22 @@ export default function useRoleAnnouncements() {
   const [reloadKey, setReloadKey] = useState(0);
   const subscriptionKey = `${feedRole ?? 'none'}:${reloadKey}`;
 
-  const [state, setState] = useState({ items: [], status: 'loading', error: null, key: subscriptionKey });
+  const [state, setState] = useState({ raw: [], items: [], status: 'loading', error: null, key: subscriptionKey });
 
   // Reset to loading when the audience changes or a retry is requested
   // (derived during render, not inside the effect).
   if (state.key !== subscriptionKey) {
-    setState({ items: [], status: 'loading', error: null, key: subscriptionKey });
+    setState({ raw: [], items: [], status: 'loading', error: null, key: subscriptionKey });
   }
+
+  // Scheduled posts appear and expired posts disappear on time while the page is open.
+  useEffect(() => {
+    const isLeaderFeed = feedRole === 'leader';
+    const timer = setInterval(() => {
+      setState((prev) => (prev.status === 'ready' ? { ...prev, ...derive(prev.raw, isLeaderFeed, Date.now()) } : prev));
+    }, RECHECK_MS);
+    return () => clearInterval(timer);
+  }, [feedRole]);
 
   useEffect(() => {
     if (!feedRole) return undefined;
@@ -37,7 +57,7 @@ export default function useRoleAnnouncements() {
 
     const fail = (error) => {
       logFirestoreError('Announcement feed', error, debug);
-      setState({ items: [], status: 'error', error, key });
+      setState({ raw: [], items: [], status: 'error', error, key });
     };
 
     let unsubscribe = () => {};
@@ -53,17 +73,15 @@ export default function useRoleAnnouncements() {
         feedQuery,
         (snapshot) => {
           try {
-            const items = snapshot.docs
+            const raw = snapshot.docs
               .map((docSnap) => ({
                 id: docSnap.id,
                 // 'estimate' gives freshly published posts a local time until the server confirms.
                 ...docSnap.data({ serverTimestamps: 'estimate' })
               }))
-              .sort((a, b) => toMillis(b.publishedAt) - toMillis(a.publishedAt));
-            // Posts from the last 48 h (evaluated when data arrives, not during render).
-            const now = Date.now();
-            const recentCount = items.filter((item) => now - toMillis(item.publishedAt) <= RECENT_WINDOW_MS).length;
-            setState({ items, recentCount, status: 'ready', error: null, key });
+              .sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+            // Visibility + "new in 48 h" are evaluated when data arrives, not during render.
+            setState({ raw, ...derive(raw, feedRole === 'leader', Date.now()), status: 'ready', error: null, key });
           } catch (error) {
             fail(error);
           }
@@ -84,6 +102,9 @@ export default function useRoleAnnouncements() {
   return {
     announcements: state.items,
     recentCount: state.recentCount ?? 0,
+    // Time the visible list was last evaluated (ms) — lets views show schedule state
+    // without reading the clock during render.
+    now: state.now ?? null,
     status: state.status,
     error: state.error,
     retry

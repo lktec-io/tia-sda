@@ -152,8 +152,14 @@ service cloud.firestore {
       let d = request.resource.data;
       return d.keys().hasOnly([
           'title', 'category', 'content', 'visibleTo', 'imageUrl',
-          'authorId', 'authorName', 'publishedAt', 'updatedAt', 'updatedBy'
+          'authorId', 'authorName', 'publishedAt', 'updatedAt', 'updatedBy',
+          'scheduledAt', 'expiresAt'
         ])
+        // Optional scheduling window. NOTE: rules cannot filter queries, so hiding
+        // scheduled/expired posts from feeds is done by the client.
+        && (!('scheduledAt' in d) || d.scheduledAt is timestamp)
+        && (!('expiresAt' in d) || d.expiresAt is timestamp)
+        && (!('scheduledAt' in d) || !('expiresAt' in d) || d.expiresAt > d.scheduledAt)
         // Optional event poster: empty or a Cloudinary HTTPS image.
         && (!('imageUrl' in d) || isValidPhotoUrl(d.imageUrl))
         && d.keys().hasAll(['title', 'category', 'content', 'visibleTo', 'authorId', 'publishedAt'])
@@ -163,6 +169,43 @@ service cloud.firestore {
         && d.visibleTo is list
         && d.visibleTo.size() > 0
         && d.visibleTo.hasOnly(['reader', 'member', 'associate']);
+    }
+
+    // --------------------------------------------- directory: validation
+    // Public-to-members "Flock Directory" card. Only non-sensitive keys are allowed —
+    // phone, housing and fee status can never be written here. Name and photo must
+    // mirror the owner's profile (getAfter also sees a profile created in the same batch).
+    function isValidDirectoryEntry(uid) {
+      let d = request.resource.data;
+      let profile = getAfter(profilePath(uid)).data;
+      return existsAfter(profilePath(uid))
+        && d.keys().hasOnly([
+          'uid', 'fullName', 'profilePictureUrl', 'courseCode', 'courseName',
+          'academicLevel', 'ministryWing', 'updatedAt'
+        ])
+        && d.keys().hasAll(['uid', 'fullName', 'updatedAt'])
+        && d.uid == uid
+        && d.fullName == profile.fullName
+        && d.get('profilePictureUrl', '') == profile.get('profilePictureUrl', '')
+        && isShortString(d.get('courseCode', ''), 20)
+        && isShortString(d.get('courseName', ''), 120)
+        && d.get('academicLevel', '') in ['', 'certificate', 'diploma', 'degree']
+        && isShortString(d.get('ministryWing', ''), 40)
+        && d.updatedAt == request.time;
+    }
+
+    // ------------------------------------------- engagement: validation
+    // users/{uid}/engagement/{YYYY-MM}: monthly counts recorded by leaders.
+    function isValidEngagement(monthId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['month', 'attendance', 'welfare', 'ministry', 'updatedBy', 'updatedAt'])
+        && d.keys().hasAll(['month', 'attendance', 'welfare', 'ministry', 'updatedBy', 'updatedAt'])
+        && d.month == monthId
+        && d.attendance is int && d.attendance >= 0 && d.attendance <= 31
+        && d.welfare is int && d.welfare >= 0 && d.welfare <= 31
+        && d.ministry is int && d.ministry >= 0 && d.ministry <= 31
+        && d.updatedBy == request.auth.uid
+        && d.updatedAt == request.time;
     }
 
     // ================================================================ users
@@ -199,6 +242,26 @@ service cloud.firestore {
                     && (!('updatedBy' in changedKeys()) || request.resource.data.updatedBy == request.auth.uid)
                     && (!('updatedAt' in changedKeys()) || request.resource.data.updatedAt == request.time);
 
+      allow delete: if isLeader();
+    }
+
+    // ==================================================== flock directory
+    match /directory/{uid} {
+      // Any registered profile may browse; entries hold no sensitive fields.
+      allow read: if hasProfile();
+      allow create, update: if (isSelf(uid) || isLeader()) && isValidDirectoryEntry(uid);
+      allow delete: if isSelf(uid) || isLeader();
+    }
+
+    // ================================================ engagement analytics
+    match /users/{uid}/engagement/{monthId} {
+      allow read: if isSelf(uid) || isLeader();
+      allow create, update: if isLeader()
+                            && monthId.matches('^[0-9]{4}-(0[1-9]|1[0-2])
+  }
+}
+)
+                            && isValidEngagement(monthId);
       allow delete: if isLeader();
     }
 

@@ -21,7 +21,8 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
-  where
+  where,
+  writeBatch
 } from 'firebase/firestore';
 
 const PROJECT_ID = 'demo-tucasa-rules';
@@ -411,5 +412,123 @@ describe('Announcement publishing', () => {
   test('leader can delete an announcement; member cannot', async () => {
     await assertFails(deleteDoc(doc(as('member1'), 'announcements/public')));
     await assertSucceeds(deleteDoc(doc(as('leader1'), 'announcements/public')));
+  });
+});
+
+describe('Announcement scheduling (scheduledAt / expiresAt)', () => {
+  test('leader can publish with a schedule window', async () => {
+    await assertSucceeds(
+      addDoc(
+        collection(as('leader1'), 'announcements'),
+        post('leader1', ['member'], { scheduledAt: new Date('2026-11-01T08:00'), expiresAt: new Date('2026-11-08T08:00') })
+      )
+    );
+  });
+
+  test('expiry must be after the schedule, and both must be timestamps', async () => {
+    await assertFails(
+      addDoc(
+        collection(as('leader1'), 'announcements'),
+        post('leader1', ['member'], { scheduledAt: new Date('2026-11-08'), expiresAt: new Date('2026-11-01') })
+      )
+    );
+    await assertFails(addDoc(collection(as('leader1'), 'announcements'), post('leader1', ['member'], { expiresAt: '2026-11-08' })));
+  });
+
+  test('edit can set and then clear the schedule fields', async () => {
+    const ref = doc(as('leader2'), 'announcements/public');
+    await assertSucceeds(updateDoc(ref, { expiresAt: new Date('2026-12-01'), updatedBy: 'leader2', updatedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(ref, { expiresAt: deleteField(), updatedBy: 'leader2', updatedAt: serverTimestamp() }));
+  });
+});
+
+describe('Flock Directory', () => {
+  // Matches legacyProfile('member1'): name `${uid} Test`, no photo.
+  const card = (uid, extra = {}) => ({
+    uid,
+    fullName: `${uid} Test`,
+    profilePictureUrl: '',
+    courseCode: 'BAC',
+    courseName: 'Bachelor in Accountancy',
+    academicLevel: 'degree',
+    ministryWing: 'None',
+    updatedAt: serverTimestamp(),
+    ...extra
+  });
+
+  test('member can publish their own card and any profile holder can browse', async () => {
+    await assertSucceeds(setDoc(doc(as('member1'), 'directory/member1'), card('member1')));
+    await assertSucceeds(getDocs(collection(as('member2'), 'directory')));
+    await assertSucceeds(getDocs(collection(as('assoc1'), 'directory')));
+  });
+
+  test('guests and accounts without a profile cannot browse', async () => {
+    await assertFails(getDocs(collection(asGuest(), 'directory')));
+    await assertFails(getDocs(collection(as('ghost'), 'directory')));
+  });
+
+  test('sensitive fields (phone, house, fee) can never be written to a card', async () => {
+    await assertFails(setDoc(doc(as('member1'), 'directory/member1'), card('member1', { phone: '0712345678' })));
+    await assertFails(setDoc(doc(as('member1'), 'directory/member1'), card('member1', { houseNumber: 'B12' })));
+    await assertFails(setDoc(doc(as('member1'), 'directory/member1'), card('member1', { feeStatus: 'fully_paid' })));
+  });
+
+  test('name and photo must mirror the profile; no cards for other users', async () => {
+    await assertFails(setDoc(doc(as('member1'), 'directory/member1'), card('member1', { fullName: 'Someone Else' })));
+    await assertFails(setDoc(doc(as('member1'), 'directory/member1'), card('member1', { profilePictureUrl: PHOTO })));
+    await assertFails(setDoc(doc(as('member1'), 'directory/member2'), card('member2')));
+  });
+
+  test('a new registration can write profile + card in one batch', async () => {
+    const db = as('newbie');
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'users/newbie'), registration('newbie'));
+    batch.set(doc(db, 'directory/newbie'), card('newbie'));
+    await assertSucceeds(batch.commit());
+  });
+
+  test('leader can remove a member together with their card', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'directory/member1'), card('member1', { updatedAt: new Date() }));
+    });
+    const db = as('leader1');
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'users/member1'));
+    batch.delete(doc(db, 'directory/member1'));
+    await assertSucceeds(batch.commit());
+  });
+});
+
+describe('Engagement analytics (users/{uid}/engagement/{YYYY-MM})', () => {
+  const record = (month, extra = {}) => ({
+    month,
+    attendance: 4,
+    welfare: 1,
+    ministry: 3,
+    updatedBy: 'leader1',
+    updatedAt: serverTimestamp(),
+    ...extra
+  });
+
+  test('leader can record a month; the member can read their own history', async () => {
+    await assertSucceeds(setDoc(doc(as('leader1'), 'users/member1/engagement/2026-10'), record('2026-10')));
+    await assertSucceeds(getDocs(collection(as('member1'), 'users/member1/engagement')));
+  });
+
+  test('members cannot read others or write their own counts', async () => {
+    await assertFails(getDocs(collection(as('member2'), 'users/member1/engagement')));
+    await assertFails(
+      setDoc(doc(as('member1'), 'users/member1/engagement/2026-10'), record('2026-10', { updatedBy: 'member1' }))
+    );
+  });
+
+  test('month id, ranges and audit fields are validated', async () => {
+    const leader = as('leader1');
+    await assertFails(setDoc(doc(leader, 'users/member1/engagement/2026-13'), record('2026-13')));
+    await assertFails(setDoc(doc(leader, 'users/member1/engagement/2026-10'), record('2026-09')));
+    await assertFails(setDoc(doc(leader, 'users/member1/engagement/2026-10'), record('2026-10', { attendance: 40 })));
+    await assertFails(setDoc(doc(leader, 'users/member1/engagement/2026-10'), record('2026-10', { welfare: 1.5 })));
+    await assertFails(setDoc(doc(leader, 'users/member1/engagement/2026-10'), record('2026-10', { updatedBy: 'leader2' })));
+    await assertFails(setDoc(doc(leader, 'users/member1/engagement/2026-10'), record('2026-10', { phone: '07' })));
   });
 });

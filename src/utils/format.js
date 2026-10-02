@@ -15,6 +15,13 @@ export const formatDate = (value, fallback = 'Date not set') => {
     : fallback;
 };
 
+export const formatDateTime = (value, fallback = '—') => {
+  const date = toDate(value);
+  return date
+    ? date.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : fallback;
+};
+
 export const formatLongDate = (value, fallback = '—') => {
   const date = toDate(value);
   return date

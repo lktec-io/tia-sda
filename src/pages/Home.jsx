@@ -29,11 +29,11 @@ import {
   swahiliLabels,
   welfarePrograms
 } from '../data/siteContent';
-import { toDate } from '../utils/format';
+import { isRecentAnnouncement } from '../utils/announcements';
+import NewAnnouncementRibbon from '../components/NewAnnouncementRibbon';
 import '../styles/home.css';
 
 const MAX_ANNOUNCEMENTS = 6;
-const NEW_POST_WINDOW_MS = 48 * 60 * 60 * 1000; // "Latest update" badge for posts < 48 h old
 
 const CHANNEL_ICONS = {
   instagram: InstagramIcon,
@@ -190,14 +190,9 @@ export default function Home() {
       .then(({ fetchPublicAnnouncements }) => fetchPublicAnnouncements(MAX_ANNOUNCEMENTS))
       .then((items) => {
         if (!active) return;
-        // Flag posts published within the last 48 hours (evaluated once, at load time).
+        // Flag posts that went out within the last 48 hours (evaluated once, at load time).
         const loadedAt = Date.now();
-        setAnnouncements(
-          items.map((item) => {
-            const published = toDate(item.publishedAt || item.createdAt);
-            return { ...item, isNew: Boolean(published) && loadedAt - published.getTime() <= NEW_POST_WINDOW_MS };
-          })
-        );
+        setAnnouncements(items.map((item) => ({ ...item, isNew: isRecentAnnouncement(item, loadedAt) })));
         setFeedStatus('ready');
       })
       .catch((error) => {
@@ -314,6 +309,8 @@ export default function Home() {
               <p>No public announcements yet. Check back soon for upcoming programs.</p>
             </div>
           )}
+
+          {feedStatus === 'ready' && announcements.some((item) => item.isNew) && <NewAnnouncementRibbon />}
 
           {feedStatus === 'ready' && announcements.length > 0 && (
             <div className="announcement-masonry">

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
-import { deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore';
+import { DIRECTORY_COLLECTION } from '../../lib/directory';
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import Alert from '../../components/Alert';
@@ -255,7 +256,11 @@ export default function CommandCenter() {
     setDeleting(true);
 
     try {
-      await deleteDoc(doc(db, 'users', memberToDelete.id));
+      // Profile + Flock Directory card go together (deleting a missing card is a no-op).
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'users', memberToDelete.id));
+      batch.delete(doc(db, DIRECTORY_COLLECTION, memberToDelete.id));
+      await batch.commit();
       if (drawerId === memberToDelete.id) setDrawerId(null);
       setMessage({ type: 'success', text: `${memberToDelete.fullName || 'The member'} has been removed from the registry.` });
       setMemberToDelete(null);

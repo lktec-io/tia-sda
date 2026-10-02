@@ -103,6 +103,29 @@ export const YEAR_OPTIONS = [
   { value: 'N/A', label: 'Not Applicable' }
 ];
 
+// ---------------------------------------------------------------- ministry wings
+export const MINISTRY_WINGS = [
+  { value: 'None', label: 'None' },
+  { value: 'Choir', label: 'TUCASA Choir' },
+  { value: 'Evangelism', label: 'Evangelism Team' },
+  { value: 'Welfare', label: 'Welfare Team' },
+  { value: 'Media', label: 'Media & Technical' }
+];
+
+export const ministryLabel = (value) =>
+  MINISTRY_WINGS.find((w) => w.value === value)?.label || value || 'None';
+
+// ---------------------------------------------------------------- engagement analytics
+// Monthly counts leaders record in users/{uid}/engagement/{YYYY-MM}.
+// Keep keys + ENGAGEMENT_MAX in sync with isValidEngagement() in firestore.rules.
+export const ENGAGEMENT_MAX = 31;
+
+export const ENGAGEMENT_METRICS = [
+  { key: 'attendance', label: 'Service Attendance', sw: 'Mahudhurio ya Ibada', color: '#0f2b46' },
+  { key: 'welfare', label: 'Welfare Meetings', sw: 'Vikao vya Ustawi', color: '#d4af37' },
+  { key: 'ministry', label: 'Choir / Ministry', sw: 'Kwaya na Huduma', color: '#5b84b1' }
+];
+
 // ---------------------------------------------------------------- academics
 export const ACADEMIC_LEVELS = [
   { value: 'certificate', label: 'Certificate (Astashahada)', short: 'Certificate' },

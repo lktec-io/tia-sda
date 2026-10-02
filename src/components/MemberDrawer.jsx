@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef } from 'react';
 import MemberAvatar from './MemberAvatar';
 import FeeSegment from './FeeSegment';
+import EngagementEditor from './EngagementEditor';
 import {
   BookIcon,
+  ChurchIcon,
   CloseIcon,
   HeartIcon,
   MapPinIcon,
@@ -24,7 +26,8 @@ import {
   getCourseCode,
   getCourseName,
   getHouseNumber,
-  isLeaderProfile
+  isLeaderProfile,
+  ministryLabel
 } from '../data/constants';
 import { formatLongDate } from '../utils/format';
 
@@ -165,6 +168,14 @@ export default function MemberDrawer({
             </p>
           </section>
 
+          <section className="drawer-section">
+            <h3>
+              <ChurchIcon width={16} height={16} />
+              Fellowship Engagement
+            </h3>
+            <EngagementEditor key={member.id} memberId={member.id} memberName={member.fullName || 'this member'} />
+          </section>
+
           <Section
             icon={<PhoneIcon width={16} height={16} />}
             title="Contact"
@@ -200,7 +211,7 @@ export default function MemberDrawer({
             title="Church & Ministry"
             rows={[
               { label: 'Access Level', value: formatRole(member) },
-              { label: 'Ministry Wing', value: member.ministryWing || 'None' },
+              { label: 'Ministry Wing', value: ministryLabel(member.ministryWing) },
               { label: 'Membership Fee', value: `${fee.label} (${formatTZS(fee.amount)})` }
             ]}
           />

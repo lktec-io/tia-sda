@@ -199,6 +199,73 @@
   background: rgba(212, 175, 55, 0.5);
 }
 
+/* ---------- Engagement chart (grouped bars) ---------- */
+.engagement {
+  margin: 0;
+}
+
+.engagement svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.engagement-bar {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: engagementRise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: opacity 0.3s ease-out;
+}
+
+.engagement-group:hover .engagement-bar {
+  opacity: 0.55;
+}
+
+.engagement-group .engagement-bar:hover {
+  opacity: 1;
+}
+
+.engagement-placeholder {
+  fill: #e2e8f0;
+}
+
+@keyframes engagementRise {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.engagement-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.engagement-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.engagement-legend small {
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.engagement-key {
+  display: inline-block;
+  width: 10px;
+  height: 12px;
+  border-radius: 2px;
+}
+
 @media (max-width: 560px) {
   .donut {
     justify-content: center;
@@ -212,5 +279,9 @@
 @media (prefers-reduced-motion: reduce) {
   .donut-arc {
     transition: none;
+  }
+
+  .engagement-bar {
+    animation: none;
   }
 }

@@ -421,6 +421,64 @@
   color: var(--text-muted);
 }
 
+.drawer-fee-note.is-error {
+  color: #b91c1c;
+}
+
+/* ---------- Engagement editor (member drawer) ---------- */
+.engagement-editor .engagement {
+  margin-bottom: 12px;
+}
+
+.engagement-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.engagement-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+
+.engagement-field span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.engagement-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: #fff;
+}
+
+.engagement-field input:focus {
+  outline: 2px solid rgba(26, 68, 108, 0.35);
+  outline-offset: 1px;
+}
+
+.engagement-month {
+  grid-column: 1 / -1;
+}
+
+.engagement-form .btn {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
 /* ---------- Church Treasury Insights ---------- */
 .treasury {
   position: relative;
@@ -961,6 +1019,63 @@
   font-weight: 700;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* Scheduling (datetime-local pair) */
+.schedule-set {
+  border: 1px solid rgba(15, 43, 70, 0.12);
+  border-radius: 10px;
+  padding: 14px 16px 12px;
+  margin-bottom: 22px;
+  background: linear-gradient(180deg, rgba(212, 175, 55, 0.06), rgba(255, 255, 255, 0));
+}
+
+.schedule-set legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+
+.schedule-set legend svg {
+  color: var(--gold-deep, #b8941f);
+}
+
+.schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 4px 16px;
+}
+
+.schedule-grid .field {
+  margin-bottom: 6px;
+  min-width: 0;
+}
+
+.schedule-grid input[type='datetime-local'] {
+  width: 100%;
+  min-width: 0;
+  font-family: inherit;
+}
+
+.label-sw {
+  font-weight: 600;
+  color: var(--slate, #64748b);
+}
+
+.schedule-clear {
+  margin-top: 6px;
+  font-size: 12.5px;
+}
+
+.schedule-hint {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--slate, #64748b);
 }
 
 .audience-set {

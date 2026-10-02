@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import useRoleAnnouncements from '../../hooks/useRoleAnnouncements';
 import AnnouncementPost from '../../components/AnnouncementPost';
 import Alert from '../../components/Alert';
+import EngagementPanel from '../../components/EngagementPanel';
 import FeeTracker from '../../components/FeeTracker';
 import MemberAvatar from '../../components/MemberAvatar';
 import ExecutiveOverview from './ExecutiveOverview';
@@ -15,6 +16,7 @@ import {
   PhoneIcon,
   ShieldIcon,
   UserIcon,
+  UsersIcon,
   WalletIcon
 } from '../../components/Icons';
 import {
@@ -26,7 +28,8 @@ import {
   formatTZS,
   formatYear,
   getAcademicLevel,
-  getHouseNumber
+  getHouseNumber,
+  ministryLabel
 } from '../../data/constants';
 import { formatLongDate } from '../../utils/format';
 
@@ -64,7 +67,7 @@ function MemberOverview() {
     { icon: BookIcon, label: 'Academic Level', value: formatAcademicLevel(getAcademicLevel(academic), { long: true }) },
     { icon: BookIcon, label: 'Course', value: formatCourse(academic) },
     { icon: BookIcon, label: 'Year of Study', value: formatYear(academic?.yearOfStudy) },
-    { icon: HeartIcon, label: 'Ministry Wing', value: userProfile?.ministryWing || 'None' },
+    { icon: HeartIcon, label: 'Ministry Wing', value: ministryLabel(userProfile?.ministryWing) },
     { icon: WalletIcon, label: 'Membership Fee', value: `${fee.label} · ${formatTZS(fee.amount)}` },
     { icon: UserIcon, label: 'Member Since', value: formatLongDate(userProfile?.createdAt) }
   ];
@@ -89,7 +92,11 @@ function MemberOverview() {
         </div>
       </section>
 
-      <FeeTracker status={feeStatus} />
+      {/* Fee arc ring beside the engagement bar graph (stacks on narrow screens). */}
+      <div className="insight-row">
+        <FeeTracker status={feeStatus} />
+        <EngagementPanel uid={userProfile?.uid} />
+      </div>
 
       <section className="quick-grid">
         <Link to="/dashboard/announcements" className="quick-card">
@@ -125,11 +132,11 @@ function MemberOverview() {
             <ArrowRightIcon width={18} height={18} className="quick-arrow" />
           </Link>
         ) : (
-          <Link to="/#ministries" className="quick-card">
-            <span className="quick-icon"><HeartIcon /></span>
+          <Link to="/dashboard/directory" className="quick-card">
+            <span className="quick-icon"><UsersIcon /></span>
             <span className="quick-text">
-              <strong>Choir & Ministries</strong>
-              <small>Sabbath schedule and programs</small>
+              <strong>Flock Directory</strong>
+              <small lang="sw">Orodha ya Washiriki</small>
             </span>
             <ArrowRightIcon width={18} height={18} className="quick-arrow" />
           </Link>

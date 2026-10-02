@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteField, doc, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import useRoleAnnouncements from '../../hooks/useRoleAnnouncements';
@@ -8,8 +8,9 @@ import AnnouncementPost from '../../components/AnnouncementPost';
 import Alert from '../../components/Alert';
 import PosterUpload from '../../components/PosterUpload';
 import PublicAnnouncementCard from '../../components/PublicAnnouncementCard';
-import { CheckIcon, FileIcon, MegaphoneIcon, SendIcon } from '../../components/Icons';
+import { CheckIcon, ClockIcon, FileIcon, MegaphoneIcon, SendIcon } from '../../components/Icons';
 import { ANNOUNCEMENT_CATEGORIES, VISIBILITY_OPTIONS } from '../../data/constants';
+import { formatDateTime, toDate } from '../../utils/format';
 import '../../styles/leader.css';
 
 const TITLE_MAX = 120;
@@ -20,7 +21,25 @@ const EMPTY_FORM = {
   category: ANNOUNCEMENT_CATEGORIES[0],
   content: '',
   visibleTo: ['member', 'associate'],
-  imageUrl: ''
+  imageUrl: '',
+  scheduledAt: '', // datetime-local string, '' = publish immediately
+  expiresAt: '' // datetime-local string, '' = never expires
+};
+
+// Firestore Timestamp / Date -> "YYYY-MM-DDTHH:mm" in the leader's local time zone
+// (the format <input type="datetime-local"> expects).
+const toLocalInput = (value) => {
+  const date = toDate(value);
+  if (!date) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+// "YYYY-MM-DDTHH:mm" (local) -> Date, or null when empty/invalid.
+const fromLocalInput = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 };
 
 // Pre-populates the form from an existing announcement (Edit Mode).
@@ -31,7 +50,9 @@ const formFrom = (announcement) =>
         category: ANNOUNCEMENT_CATEGORIES.includes(announcement.category) ? announcement.category : 'General',
         content: announcement.content || '',
         visibleTo: Array.isArray(announcement.visibleTo) ? announcement.visibleTo : [],
-        imageUrl: announcement.imageUrl || ''
+        imageUrl: announcement.imageUrl || '',
+        scheduledAt: toLocalInput(announcement.scheduledAt),
+        expiresAt: toLocalInput(announcement.expiresAt)
       }
     : EMPTY_FORM;
 
@@ -141,6 +162,29 @@ function PublisherWorkspace({ editing, feed }) {
       return;
     }
 
+    const scheduledDate = fromLocalInput(form.scheduledAt);
+    const expiresDate = fromLocalInput(form.expiresAt);
+    const nowMs = Date.now();
+    const expiryChanged = form.expiresAt !== formFrom(editing).expiresAt;
+
+    if (form.scheduledAt && !scheduledDate) {
+      setMessage({ type: 'error', text: 'The publish schedule time is not a valid date.' });
+      return;
+    }
+    if (form.expiresAt && !expiresDate) {
+      setMessage({ type: 'error', text: 'The expiry date is not a valid date.' });
+      return;
+    }
+    if (expiresDate && scheduledDate && expiresDate <= scheduledDate) {
+      setMessage({ type: 'error', text: 'The expiry date must be later than the publish schedule time.' });
+      return;
+    }
+    // An unchanged past expiry is allowed on edit so leaders can still fix an archived post.
+    if (expiresDate && expiryChanged && expiresDate.getTime() <= nowMs) {
+      setMessage({ type: 'error', text: 'The expiry date must be in the future.' });
+      return;
+    }
+
     setSaving(true);
     setMessage({ type: 'info', text: isEdit ? 'Saving changes...' : 'Publishing announcement...' });
 
@@ -153,24 +197,38 @@ function PublisherWorkspace({ editing, feed }) {
       visibleTo,
       imageUrl: form.imageUrl
     };
+    const scheduledTs = scheduledDate ? Timestamp.fromDate(scheduledDate) : null;
+    const expiresTs = expiresDate ? Timestamp.fromDate(expiresDate) : null;
+
+    const isFuture = scheduledDate && scheduledDate.getTime() > nowMs;
+    const audience = audienceLabels(visibleTo);
+    const liveText = isFuture
+      ? `is scheduled to go live for ${audience} on ${formatDateTime(scheduledDate)}`
+      : `is live for ${audience}`;
+    const expiryText = expiresDate ? ` It will be hidden automatically after ${formatDateTime(expiresDate)}.` : '';
 
     try {
       if (isEdit) {
         await updateDoc(doc(db, 'announcements', editing.id), {
           ...fields,
+          // Cleared fields are removed so the post publishes immediately / never expires.
+          scheduledAt: scheduledTs ?? deleteField(),
+          expiresAt: expiresTs ?? deleteField(),
           updatedBy: currentUser.uid,
           updatedAt: serverTimestamp()
         });
-        setMessage({ type: 'success', text: `"${title}" has been updated and is live for ${audienceLabels(visibleTo)}.` });
+        setMessage({ type: 'success', text: `"${title}" has been updated and ${liveText}.${expiryText}` });
       } else {
         await addDoc(collection(db, 'announcements'), {
           ...fields,
+          ...(scheduledTs && { scheduledAt: scheduledTs }),
+          ...(expiresTs && { expiresAt: expiresTs }),
           authorId: currentUser.uid,
           authorName: userProfile?.fullName || 'TUCASA Leadership',
           publishedAt: serverTimestamp()
         });
         setForm(EMPTY_FORM);
-        setMessage({ type: 'success', text: `"${title}" is now live for ${audienceLabels(visibleTo)}.` });
+        setMessage({ type: 'success', text: `"${title}" ${liveText}.${expiryText}` });
       }
     } catch (error) {
       console.error(isEdit ? 'Announcement update error:' : 'Publish error:', error);
@@ -187,7 +245,9 @@ function PublisherWorkspace({ editing, feed }) {
     visibleTo: form.visibleTo,
     imageUrl: form.imageUrl,
     authorName: editing?.authorName || userProfile?.fullName || 'TUCASA Leadership',
-    publishedAt: editing?.publishedAt || new Date()
+    publishedAt: editing?.publishedAt || new Date(),
+    scheduledAt: fromLocalInput(form.scheduledAt),
+    expiresAt: fromLocalInput(form.expiresAt)
   };
 
   const recent = feed.announcements.slice(0, 5);
@@ -271,6 +331,60 @@ function PublisherWorkspace({ editing, feed }) {
                 required
               />
             </div>
+
+            <fieldset className="schedule-set">
+              <legend>
+                <ClockIcon width={16} height={16} />
+                Scheduling
+              </legend>
+              <div className="schedule-grid">
+                <div className="field">
+                  <label htmlFor="post-scheduled">
+                    <span>
+                      Publish Schedule Time <span className="label-sw" lang="sw">/ Muda wa Kurusha</span>
+                    </span>
+                  </label>
+                  <input
+                    id="post-scheduled"
+                    type="datetime-local"
+                    name="scheduledAt"
+                    value={form.scheduledAt}
+                    onChange={handleChange}
+                    aria-describedby="schedule-hint"
+                  />
+                  {form.scheduledAt && (
+                    <button type="button" className="btn-link schedule-clear" onClick={() => setForm((p) => ({ ...p, scheduledAt: '' }))}>
+                      Publish immediately instead
+                    </button>
+                  )}
+                </div>
+                <div className="field">
+                  <label htmlFor="post-expires">
+                    <span>
+                      Announcement Expiry Date <span className="label-sw" lang="sw">/ Tarehe ya Kuondoa</span>
+                    </span>
+                  </label>
+                  <input
+                    id="post-expires"
+                    type="datetime-local"
+                    name="expiresAt"
+                    value={form.expiresAt}
+                    min={form.scheduledAt || undefined}
+                    onChange={handleChange}
+                    aria-describedby="schedule-hint"
+                  />
+                  {form.expiresAt && (
+                    <button type="button" className="btn-link schedule-clear" onClick={() => setForm((p) => ({ ...p, expiresAt: '' }))}>
+                      Never expire
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p id="schedule-hint" className="schedule-hint">
+                Leave both empty to publish now with no expiry. Scheduled posts stay hidden from members until their
+                time; expired posts are hidden automatically. Times use your device&apos;s time zone.
+              </p>
+            </fieldset>
 
             <fieldset className="audience-set">
               <legend>Visibility</legend>
@@ -372,6 +486,8 @@ function PublisherWorkspace({ editing, feed }) {
                     announcement={item}
                     showAudience
                     compact
+                    showSchedule
+                    now={feed.now}
                     actions={
                       editing?.id === item.id ? (
                         <span className="badge badge-gold">Editing</span>

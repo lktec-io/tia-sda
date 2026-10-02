@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import useRoleAnnouncements from '../../hooks/useRoleAnnouncements';
 import AnnouncementPost from '../../components/AnnouncementPost';
 import Alert from '../../components/Alert';
+import NewAnnouncementRibbon from '../../components/NewAnnouncementRibbon';
 import { MegaphoneIcon } from '../../components/Icons';
 import { ANNOUNCEMENT_CATEGORIES, ROLE_LABELS } from '../../data/constants';
 
@@ -19,7 +20,7 @@ const getFeedError = (error) => {
 
 export default function MemberAnnouncements() {
   const { feedRole, isLeader } = useAuth();
-  const { announcements, status, error } = useRoleAnnouncements();
+  const { announcements, recentCount, status, error, now } = useRoleAnnouncements();
   const [category, setCategory] = useState('All');
 
   const filtered = useMemo(
@@ -31,6 +32,8 @@ export default function MemberAnnouncements() {
 
   return (
     <div className="view">
+      {status === 'ready' && recentCount > 0 && <NewAnnouncementRibbon count={recentCount} />}
+
       <div className="view-head">
         <div>
           <h2>Internal Announcements</h2>
@@ -79,7 +82,7 @@ export default function MemberAnnouncements() {
       {status === 'ready' && filtered.length > 0 && (
         <div className="post-stack">
           {filtered.map((item) => (
-            <AnnouncementPost key={item.id} announcement={item} showAudience={isLeader} />
+            <AnnouncementPost key={item.id} announcement={item} showAudience={isLeader} showSchedule={isLeader} now={now} />
           ))}
         </div>
       )}

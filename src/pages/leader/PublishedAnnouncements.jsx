@@ -5,6 +5,9 @@ import { CalendarIcon, FileIcon, MegaphoneIcon } from '../../components/Icons';
 import { CATEGORY_CLASS, ROLE_LABELS } from '../../data/constants';
 import { cloudinaryBanner } from '../../lib/cloudinary';
 import { formatDate } from '../../utils/format';
+import { announcementState, effectiveDate } from '../../utils/announcements';
+
+const STATE_LABEL = { scheduled: 'Scheduled', expired: 'Expired' };
 
 const MAX_ROWS = 8;
 
@@ -13,7 +16,7 @@ const MAX_ROWS = 8;
  * "Edit Poster/Post" control that opens the publisher in Edit Mode.
  */
 export default function PublishedAnnouncements() {
-  const { announcements, status, retry } = useRoleAnnouncements();
+  const { announcements, status, retry, now } = useRoleAnnouncements();
   const rows = announcements.slice(0, MAX_ROWS);
 
   return (
@@ -55,6 +58,7 @@ export default function PublishedAnnouncements() {
           {rows.map((item) => {
             const category = item.category || 'General';
             const audience = Array.isArray(item.visibleTo) ? item.visibleTo : [];
+            const state = now ? announcementState(item, now) : 'live';
             return (
               <li key={item.id} className="published-item">
                 <span className={`published-thumb ${item.imageUrl ? 'has-image' : ''}`}>
@@ -71,8 +75,11 @@ export default function PublishedAnnouncements() {
                     <span className={`cat-badge ${CATEGORY_CLASS[category] || 'cat-general'}`}>{category}</span>
                     <span className="published-date">
                       <CalendarIcon width={13} height={13} />
-                      {formatDate(item.publishedAt)}
+                      {formatDate(effectiveDate(item))}
                     </span>
+                    {state !== 'live' && (
+                      <span className={`schedule-chip schedule-${state}`}>{STATE_LABEL[state]}</span>
+                    )}
                     <span className="published-audience">
                       {audience.map((tag) => ROLE_LABELS[tag] || tag).join(' · ') || '—'}
                     </span>

@@ -11,16 +11,19 @@ import {
   MenuIcon,
   SendIcon,
   ShieldIcon,
-  UserIcon
+  UserIcon,
+  UsersIcon
 } from '../components/Icons';
 import MemberAvatar from '../components/MemberAvatar';
 import useRoleAnnouncements from '../hooks/useRoleAnnouncements';
+import useDirectorySync from '../hooks/useDirectorySync';
 import { formatRole } from '../data/constants';
 import '../styles/dashboard.css';
 
 const MEMBER_NAV = [
   { to: '/dashboard', label: 'Dashboard Overview', icon: GridIcon, end: true },
   { to: '/dashboard/announcements', label: 'Internal Announcements', icon: MegaphoneIcon },
+  { to: '/dashboard/directory', label: 'Flock Directory', sw: 'Orodha ya Washiriki', icon: UsersIcon },
   { to: '/dashboard/profile', label: 'My Profile', icon: UserIcon }
 ];
 
@@ -32,6 +35,7 @@ const LEADER_NAV = [
 const PAGE_TITLES = {
   '/dashboard': 'Dashboard Overview',
   '/dashboard/announcements': 'Internal Announcements',
+  '/dashboard/directory': 'Flock Directory',
   '/dashboard/profile': 'My Profile',
   '/leader': 'Leadership Command Center',
   '/leader/publish': 'Publish Announcement'
@@ -48,7 +52,10 @@ function SidebarLink({ item, onNavigate, alertCount = 0 }) {
         onClick={onNavigate}
       >
         <Icon width={18} height={18} />
-        <span>{item.label}</span>
+        <span>
+          {item.label}
+          {item.sw && <small className="side-link-sw" lang="sw">{item.sw}</small>}
+        </span>
         {alertCount > 0 && (
           <span
             className="red-alert-pulse"
@@ -73,6 +80,8 @@ export default function Dashboard() {
   const [signingOut, setSigningOut] = useState(false);
   // Posts published in the last 48 h for this user's audience → crimson nav alert.
   const { recentCount } = useRoleAnnouncements();
+  // Keeps this user's Flock Directory card (photo, name, course, ministry) current.
+  useDirectorySync(userProfile);
 
   const fullName = userProfile?.fullName || currentUser?.email || 'Member';
   const statusLabel = `Active ${formatRole(userProfile)}`;

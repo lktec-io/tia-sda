@@ -8,6 +8,7 @@ import { CameraIcon, CheckIcon, CloseIcon, LockIcon } from '../components/Icons'
 import {
   ACADEMIC_LEVELS,
   HOUSE_NUMBER_MAX,
+  MINISTRY_WINGS,
   RESIDENTIAL_AREAS,
   YEAR_OPTIONS,
   coursesForLevel
@@ -875,11 +876,9 @@ export default function Registration() {
             <div className="form-group">
               <label htmlFor="reg-ministry">Ministry Wing / Choir</label>
               <select id="reg-ministry" name="ministryWing" value={formData.ministryWing} onChange={handleChange}>
-                <option value="None">None</option>
-                <option value="Choir">TUCASA Choir</option>
-                <option value="Evangelism">Evangelism Team</option>
-                <option value="Welfare">Welfare Team</option>
-                <option value="Media">Media & Technical</option>
+                {MINISTRY_WINGS.map((wing) => (
+                  <option key={wing.value} value={wing.value}>{wing.label}</option>
+                ))}
               </select>
             </div>
           </div>

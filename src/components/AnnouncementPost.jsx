@@ -1,16 +1,27 @@
-import { CalendarIcon, UserIcon } from './Icons';
+import { CalendarIcon, ClockIcon, UserIcon } from './Icons';
 import { CATEGORY_CLASS, ROLE_LABELS } from '../data/constants';
 import { cloudinaryBanner } from '../lib/cloudinary';
-import { formatDate, toDate } from '../utils/format';
+import { announcementState, effectiveDate } from '../utils/announcements';
+import { formatDate, formatDateTime } from '../utils/format';
 
 /**
  * Full-text announcement card used inside the portal (member feed, leader lists, preview).
  * Shows the event poster on top when `imageUrl` is set (hidden in compact mode).
  * `actions` renders extra controls (e.g. an Edit button) in the card footer.
+ * `showSchedule` + `now` (leader views) add a Scheduled / Live / Expired chip.
  */
-export default function AnnouncementPost({ announcement, showAudience = false, compact = false, actions = null }) {
+export default function AnnouncementPost({
+  announcement,
+  showAudience = false,
+  compact = false,
+  actions = null,
+  showSchedule = false,
+  now = null
+}) {
   const category = announcement.category || 'General';
-  const published = toDate(announcement.publishedAt);
+  const published = effectiveDate(announcement);
+  const scheduleState = showSchedule && now ? announcementState(announcement, now) : null;
+  const hasTiming = Boolean(announcement.scheduledAt || announcement.expiresAt);
   const audience = Array.isArray(announcement.visibleTo) ? announcement.visibleTo : [];
   const showPoster = !compact && Boolean(announcement.imageUrl);
 
@@ -27,8 +38,17 @@ export default function AnnouncementPost({ announcement, showAudience = false, c
         <div className="post-meta">
           <time dateTime={published ? published.toISOString() : undefined}>
             <CalendarIcon width={15} height={15} />
-            {formatDate(announcement.publishedAt)}
+            {formatDate(published)}
           </time>
+          {scheduleState && hasTiming && (
+            <span className={`schedule-chip schedule-${scheduleState}`}>
+              <ClockIcon width={13} height={13} />
+              {scheduleState === 'scheduled' && `Scheduled · ${formatDateTime(published)}`}
+              {scheduleState === 'live' &&
+                (announcement.expiresAt ? `Live · expires ${formatDateTime(announcement.expiresAt)}` : 'Live')}
+              {scheduleState === 'expired' && 'Expired · hidden from members'}
+            </span>
+          )}
           <span>
             <UserIcon width={15} height={15} />
             {announcement.authorName || 'TUCASA Leadership'}
