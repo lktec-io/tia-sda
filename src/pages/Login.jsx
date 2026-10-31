@@ -200,7 +200,7 @@ export default function Login() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@example.com"
+              placeholder="tiasda@tucasa.com"
               required
             />
           </div>
